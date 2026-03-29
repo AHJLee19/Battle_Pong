@@ -5,7 +5,7 @@ import { Ball }           from '../objects/Ball.js';
 import { Goalie }         from '../objects/Goalie.js';
 import { PowerUpManager } from '../objects/PowerUpManager.js';
 
-const WINNING_SCORE = 7;
+const WINNING_SCORE = 3;
 
 const BATTLE_BPM        = 152;
 const BATTLE_BEAT_MS    = 60000 / BATTLE_BPM;
