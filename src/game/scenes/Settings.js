@@ -96,8 +96,8 @@ export class SettingsScene extends Scene {
                 rows: [
                     ['Dash / Use Power-Up', 'SHIFT',  '/'],
                     ['Quake (built-in)', 'F', 'L'],
-                    ['Goalie Up',  'I',  'O'],
-                    ['Goalie Down','K',  'P'],
+                    ['Goalie Up',  'T',  'I'],
+                    ['Goalie Down','G',  'K'],
                 ],
             },
             {

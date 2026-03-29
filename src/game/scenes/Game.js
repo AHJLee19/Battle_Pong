@@ -298,8 +298,8 @@ export class GameScene extends Scene {
             railMinY: cy - GOAL_H / 2,
             railMaxY: cy + GOAL_H / 2,
             speed: 260,
-            upKey:   Phaser.Input.Keyboard.KeyCodes.I,
-            downKey: Phaser.Input.Keyboard.KeyCodes.K,
+            upKey:   Phaser.Input.Keyboard.KeyCodes.T,
+            downKey: Phaser.Input.Keyboard.KeyCodes.G,
         });
         this._p2Goalie = new Goalie(this, {
             x: W - GOAL_W - 30, startY: cy,
@@ -307,8 +307,8 @@ export class GameScene extends Scene {
             railMinY: cy - GOAL_H / 2,
             railMaxY: cy + GOAL_H / 2,
             speed: 260,
-            upKey:   Phaser.Input.Keyboard.KeyCodes.O,
-            downKey: Phaser.Input.Keyboard.KeyCodes.P,
+            upKey:   Phaser.Input.Keyboard.KeyCodes.I,
+            downKey: Phaser.Input.Keyboard.KeyCodes.K,
         });
     }
 
@@ -327,7 +327,6 @@ export class GameScene extends Scene {
             try { this.sound.play('pingSFX', { volume: 0.3 }); } catch(_) {}
         });
         this.physics.add.collider(this._ball.image, this._barriers, () => {
-            this._flash(0xff6600, 40);
             try { this.sound.play('pingSFX', { volume: 0.25, detune: -300 }); } catch(_) {}
         });
         this.physics.add.collider(this._ball.image, this._goalWallGroup);
