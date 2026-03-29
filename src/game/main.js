@@ -1,35 +1,31 @@
-import { Boot } from './scenes/Boot';
-import { Game as MainGame } from './scenes/Game';
-import { GameOver } from './scenes/GameOver';
-import { MainMenu } from './scenes/MainMenu';
-import { Preloader } from './scenes/Preloader';
-import { AUTO, Game } from 'phaser';
-
-//  Find out more information about the Game Config at:
-//  https://docs.phaser.io/api-documentation/typedef/types-core#gameconfig
-const config = {
-    type: AUTO,
-    width: 1024,
-    height: 768,
-    parent: 'game-container',
-    backgroundColor: '#028af8',
-    scale: {
-        mode: Phaser.Scale.FIT,
-        autoCenter: Phaser.Scale.CENTER_BOTH
-    },
-    scene: [
-        Boot,
-        Preloader,
-        MainMenu,
-        MainGame,
-        GameOver
-    ]
-};
+import Phaser from 'phaser';
+import { TitleScene } from './scenes/MainMenu.js';
+import { ModeSelectScene } from './scenes/ModeSelect.js';
+import { GameScene } from './scenes/Game.js';
+import { SettingsScene } from './scenes/Settings.js';
 
 const StartGame = (parent) => {
+    const config = {
+        type: Phaser.AUTO,
+        width: 1280,
+        height: 720,
+        backgroundColor: '#1a1ac9',
+        physics: {
+            default: 'arcade',
+            arcade: {
+            gravity: { y: 0 },
+            debug: false,
+            },
+        },
+        scene: [TitleScene, ModeSelectScene, GameScene, SettingsScene],
+        parent: 'game-container',
+        scale: {
+            mode: Phaser.Scale.FIT,
+            autoCenter: Phaser.Scale.CENTER_BOTH,
+        },
+    };
 
-    return new Game({ ...config, parent });
-
-}
+    return new Phaser.Game(config);
+};
 
 export default StartGame;
