@@ -1,5 +1,5 @@
 // src/game/scenes/Game.js
-import { Scene }          from 'phaser';
+import Phaser, { Scene }          from 'phaser';
 import { Paddle }         from '../objects/Paddle.js';
 import { Ball }           from '../objects/Ball.js';
 import { Goalie }         from '../objects/Goalie.js';
@@ -44,8 +44,6 @@ export class GameScene extends Scene {
             this.load.audio('pingSFX',   'Ping.wav');
         if (!this.cache.audio.exists('dashSFX'))
             this.load.audio('dashSFX',   'Dash.mp3');
-        if (!this.textures.exists('paddleImg'))
-            this.load.image('paddleImg', 'Paddle.png');
         if (!this.cache.audio.exists('clearSFX'))
             this.load.audio('clearSFX', 'Clear.mp3');
     }
@@ -69,8 +67,10 @@ export class GameScene extends Scene {
         this.time.delayedCall(800, () => this._ball.launch(1));
         this.input.keyboard.on('keydown-ESC', () => this._togglePause());
         this.events.on('shutdown', () => {
-            this._powerUpManager.destroy();
+            this._powerUpManager?.destroy();
             if (this._beatLoop) this._beatLoop.remove();
+            // Kill all active tweens to prevent onComplete firing on destroyed objects
+            this.tweens.killAll();
         });
 
         this.time.delayedCall(BATTLE_FIRST_BEAT, () => {
@@ -115,6 +115,7 @@ export class GameScene extends Scene {
                 targets: this._arenaBorder,
                 alpha: { from: isBar ? 0.9 : isHalf ? 0.6 : 0.35, to: 0.15 },
                 duration: BATTLE_BEAT_MS * 0.7, ease: 'Expo.easeOut',
+                overwrite: true,
             });
         }
         if (this._goalZoneGlows) {
@@ -122,6 +123,7 @@ export class GameScene extends Scene {
                 targets: g,
                 alpha: { from: isBar ? 0.5 : 0.25, to: 0.08 },
                 duration: BATTLE_BEAT_MS * 0.8, ease: 'Expo.easeOut',
+                overwrite: true,
             }));
         }
         if (this._centreCircle) {
@@ -131,6 +133,7 @@ export class GameScene extends Scene {
                 scaleX: { from: isBar ? 1.1 : 1.04, to: 1 },
                 scaleY: { from: isBar ? 1.1 : 1.04, to: 1 },
                 duration: BATTLE_BEAT_MS * 0.6, ease: 'Expo.easeOut',
+                overwrite: true,
             });
         }
     }
@@ -324,6 +327,7 @@ export class GameScene extends Scene {
             try { this.sound.play('pingSFX', { volume: 0.3 }); } catch(_) {}
         });
         this.physics.add.collider(this._ball.image, this._barriers, () => {
+            this._flash(0xff6600, 40);
             try { this.sound.play('pingSFX', { volume: 0.25, detune: -300 }); } catch(_) {}
         });
         this.physics.add.collider(this._ball.image, this._goalWallGroup);
@@ -350,74 +354,82 @@ export class GameScene extends Scene {
             if (this._p2HitCooldown > 0) { this._p2HitCooldown--; return; }
         }
 
-        const ball    = this._ball.image;
-        const padImg  = paddle.image;
+        const ball   = this._ball.image;
+        const padImg = paddle.image;
 
-        const bx = ball.x, by = ball.y;
+        // Snapshot velocity FIRST — body.reset() zeroes it, so we must read before any mutation
+        const vx = ball.body.velocity.x;
+        const vy = ball.body.velocity.y;
+        const speed = Math.sqrt(vx * vx + vy * vy);
+
+        // Skip if ball has no velocity yet (pre-launch window)
+        if (speed < 10) return;
+
+        // Use physics body centre for accurate overlap detection
+        const bx = ball.body.center.x;
+        const by = ball.body.center.y;
         const px = padImg.x, py = padImg.y;
 
-        // Paddle half-extents (texture is 14×80)
-        const halfW = 7;   // half of paddle width  (local X)
-        const halfH = 40;  // half of paddle height (local Y)
+        // Paddle half-extents (texture 14×80)
+        const halfW = 7;
+        const halfH = 40;
 
-        // Paddle local axes in world space
+        // Paddle local axes in world space (Phaser angle: 0=up, clockwise positive)
         const angleRad = Phaser.Math.DegToRad(padImg.angle);
         const cosA = Math.cos(angleRad), sinA = Math.sin(angleRad);
 
-        // Vector from paddle centre to ball
+        // Project ball-to-paddle vector onto paddle's local axes
         const dx = bx - px, dy = by - py;
+        const localX =  dx * cosA + dy * sinA;   // along paddle width
+        const localY = -dx * sinA + dy * cosA;   // along paddle length
 
-        // Project onto paddle's local axes
-        const localX = dx * cosA + dy * sinA;   // along paddle width
-        const localY = -dx * sinA + dy * cosA;  // along paddle length
-
-        // Expand hitbox by ball radius
+        // Check overlap (expanded by ball radius)
         const overlapX = (halfW + BALL_R) - Math.abs(localX);
         const overlapY = (halfH + BALL_R) - Math.abs(localY);
+        if (overlapX <= 0 || overlapY <= 0) return;
 
-        if (overlapX <= 0 || overlapY <= 0) return; // no collision
-
-        // ── Resolve: push ball out along the axis of least penetration ──
-        const vel = ball.body.velocity;
-        const speed = Math.sqrt(vel.x * vel.x + vel.y * vel.y) || this._ball._speed;
-
-        let nx, ny; // world-space normal to bounce off
-
+        // Surface normal — axis of minimum overlap determines contact face
+        let nx, ny, pushDist;
         if (overlapX < overlapY) {
-            // Penetrating through the side (width face) — bounce off side
+            // Hit the wide face (side of paddle)
             const sign = localX > 0 ? 1 : -1;
-            nx =  cosA * sign;
-            ny =  sinA * sign;
-            // Push ball out
-            ball.x += nx * overlapX;
-            ball.y += ny * overlapX;
+            nx = cosA * sign;
+            ny = sinA * sign;
+            pushDist = overlapX;
         } else {
-            // Penetrating through the top/bottom (length face) — bounce off end
+            // Hit the long face (end of paddle)
             const sign = localY > 0 ? 1 : -1;
             nx = -sinA * sign;
             ny =  cosA * sign;
-            // Push ball out
-            ball.x += nx * overlapY;
-            ball.y += ny * overlapY;
+            pushDist = overlapY;
         }
 
-        // Make sure the normal points away from the paddle
-        const dot = vel.x * nx + vel.y * ny;
-        // If ball already moving away, skip (prevents double-bounce)
+        // Push ball out by moving body.position directly — avoids body.reset() which zeroes velocity
+        ball.body.position.x += nx * pushDist;
+        ball.body.position.y += ny * pushDist;
+        // Sync the display object to the new body position
+        ball.x = ball.body.center.x;
+        ball.y = ball.body.center.y;
+
+        // Set cooldown immediately (before any early return) to prevent re-entry next frame
+        if (id === 1) this._p1HitCooldown = 8;
+        else          this._p2HitCooldown = 8;
+
+        // If already moving away from the surface, don't change velocity
+        const dot = vx * nx + vy * ny;
         if (dot > 0) return;
 
-        // Reflect velocity off the surface normal
-        let rvx = vel.x - 2 * dot * nx;
-        let rvy = vel.y - 2 * dot * ny;
+        // Reflect velocity off the surface normal using the saved (pre-mutation) velocity
+        let rvx = vx - 2 * dot * nx;
+        let rvy = vy - 2 * dot * ny;
 
-        // Add spin based on hit position along the paddle's long axis
-        const hitOffset = localY / (halfH || 1);   // -1 to +1
-        // Spin contribution perpendicular to normal
+        // Spin: hit position along long axis deflects the exit angle slightly
+        const hitOffset = Phaser.Math.Clamp(localY / halfH, -1, 1);
         const perpX = -ny, perpY = nx;
         rvx += perpX * hitOffset * 100;
         rvy += perpY * hitOffset * 100;
 
-        // Speed up on hit; dash hit calls dashBoost() for a decaying burst
+        // Normalise and set speed
         const isDash = paddle.isDashing;
         const newSpeed = Math.min(speed + 18, 720);
         const mag = Math.sqrt(rvx * rvx + rvy * rvy) || 1;
@@ -427,13 +439,7 @@ export class GameScene extends Scene {
         ball.setVelocity(rvx, rvy);
         this._ball.speed = newSpeed;
 
-        if (isDash) {
-            this._ball.dashBoost();
-        }
-
-        // Set cooldown frames to prevent sticking (6 frames)
-        if (id === 1) this._p1HitCooldown = 6;
-        else          this._p2HitCooldown = 6;
+        if (isDash) this._ball.dashBoost();
 
         try { this.sound.play('pingSFX', { volume: isDash ? 0.6 : 0.4, detune: isDash ? 400 : 0 }); } catch(_) {}
     }

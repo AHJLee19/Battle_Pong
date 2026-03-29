@@ -32,16 +32,20 @@ export class Ball {
 
   /** Apply a dash speed boost — decays back to BASE_SPEED over time */
   dashBoost() {
-    this._speed = Math.min(this._speed + DASH_BOOST, MAX_SPEED);
+    this._speed = Math.min((isFinite(this._speed) ? this._speed : BASE_SPEED) + DASH_BOOST, MAX_SPEED);
     const vel = this.image.body.velocity;
     const mag = Math.sqrt(vel.x * vel.x + vel.y * vel.y);
-    if (mag > 0) this.image.setVelocity((vel.x / mag) * this._speed, (vel.y / mag) * this._speed);
+    if (mag > 10) this.image.setVelocity((vel.x / mag) * this._speed, (vel.y / mag) * this._speed);
   }
 
   reset(x, y) {
     this._speed = BASE_SPEED;
     this.image.setPosition(x, y).setVelocity(0, 0);
-    this._trail.forEach(t => t.destroy());
+    // Kill tweens on trail ghosts before destroying to prevent onComplete firing on dead objects
+    this._trail.forEach(t => {
+      this.scene.tweens.killTweensOf(t);
+      t.destroy();
+    });
     this._trail = [];
   }
 
@@ -53,19 +57,22 @@ export class Ball {
 
   /** Gradually decay speed back toward BASE_SPEED */
   _decaySpeed(delta) {
-    if (!delta || this._speed <= BASE_SPEED) return;
+    if (!delta || this._speed <= BASE_SPEED + 1) return;
     const dt = delta / 1000;
     this._speed = Math.max(BASE_SPEED, this._speed - DECAY_RATE * dt);
+    // Only rescale velocity if the ball is actually moving
     const vel = this.image.body.velocity;
     const mag = Math.sqrt(vel.x * vel.x + vel.y * vel.y);
-    if (mag > 0) this.image.setVelocity((vel.x / mag) * this._speed, (vel.y / mag) * this._speed);
+    if (mag > 10) {
+      this.image.setVelocity((vel.x / mag) * this._speed, (vel.y / mag) * this._speed);
+    }
   }
 
   get body()  { return this.image.body; }
   get x()     { return this.image.x; }
   get y()     { return this.image.y; }
   get speed() { return this._speed; }
-  set speed(v){ this._speed = v; }
+  set speed(v){ this._speed = isFinite(v) ? v : BASE_SPEED; }
 
   destroy() {
     this.image.destroy();

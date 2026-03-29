@@ -89,7 +89,10 @@ export class Paddle {
     this._label?.destroy();
     this._quakeIconBg?.destroy();
     this._quakeIconTxt?.destroy();
-    this._trail.forEach(t => t.destroy());
+    this._trail.forEach(t => {
+      this.scene.tweens.killTweensOf(t);
+      t.destroy();
+    });
   }
 
   // ── Movement ──────────────────────────────────────────────

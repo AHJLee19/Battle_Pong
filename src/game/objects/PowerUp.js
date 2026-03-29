@@ -80,6 +80,12 @@ export class PowerUp {
     this.scene.tweens.add({ targets: this._sprite, scale: 1, alpha: 1, duration: 350, ease: 'Back.easeOut' });
     this.scene.tweens.add({ targets: this._sprite, y: y - 8, duration: 1200, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
 
+    // const ringGfx = this.scene.add.graphics().setDepth(19);
+    // ringGfx.lineStyle(1, color, 0.4);
+    // ringGfx.strokeCircle(x, y, POWERUP_RADIUS + 10);
+    // this._ring = ringGfx;
+    // this.scene.tweens.add({ targets: this._ring, angle: 360, duration: 3000, repeat: -1 });
+
     const hex = '#' + color.toString(16).padStart(6, '0');
     this._labelTxt = this.scene.add.text(x, y + POWERUP_RADIUS + 16, 'QUAKE', {
       fontFamily: '"Courier New", Courier, monospace', fontSize: '11px', color: hex, letterSpacing: 2,
@@ -102,8 +108,9 @@ export class PowerUp {
 
   _despawn() {
     this.collected = true;
+    const targets = [this._sprite, this._ring, this._labelTxt].filter(Boolean);
     this.scene.tweens.add({
-      targets: [this._sprite, this._ring, this._labelTxt],
+      targets,
       alpha: 0, scale: 0, duration: 300,
       onComplete: () => this.destroy(),
     });
