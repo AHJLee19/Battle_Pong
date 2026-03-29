@@ -1,17 +1,4 @@
 // src/game/scenes/Game.js
-// ─────────────────────────────────────────────────────────────
-//  BATTLE PONG – Game Arena
-//
-//  Changes from original:
-//  • Goal = small zone in the centre of each wall (not full wall)
-//  • Paddles roam freely in their half (no rail)
-//  • Dash — active key, bursts paddle in its facing direction
-//    and gives ball a speed bonus on impact
-//  • Quake — active key on paddle, pushes opponent away
-//  • Beat-synced arena pulse (152 BPM battle OST)
-//  • Retrowave colour palette
-// ─────────────────────────────────────────────────────────────
-// src/game/scenes/Game.js
 import { Scene }          from 'phaser';
 import { Paddle }         from '../objects/Paddle.js';
 import { Ball }           from '../objects/Ball.js';
@@ -24,15 +11,16 @@ const BATTLE_BPM        = 152;
 const BATTLE_BEAT_MS    = 60000 / BATTLE_BPM;
 const BATTLE_FIRST_BEAT = 116;
 
-const GOAL_W = 5;
-const GOAL_H = 180;
+const GOAL_W   = 24;
+const GOAL_H   = 240;
+const BALL_R   = 10;   // must match Ball.js circle radius
 
 export class GameScene extends Scene {
     constructor() {
         super('Game');
-        this._scores   = [0, 0];
-        this._paused   = false;
-        this._gameOver = false;
+        this._scores    = [0, 0];
+        this._paused    = false;
+        this._gameOver  = false;
         this._beatCount = 0;
     }
 
@@ -56,6 +44,10 @@ export class GameScene extends Scene {
             this.load.audio('pingSFX',   'Ping.wav');
         if (!this.cache.audio.exists('dashSFX'))
             this.load.audio('dashSFX',   'Dash.mp3');
+        if (!this.textures.exists('paddleImg'))
+            this.load.image('paddleImg', 'Paddle.png');
+        if (!this.cache.audio.exists('clearSFX'))
+            this.load.audio('clearSFX', 'Clear.mp3');
     }
 
     create() {
@@ -88,6 +80,9 @@ export class GameScene extends Scene {
                 callbackScope: this, loop: true,
             });
         });
+
+        // Cooldown to prevent repeated goal triggers
+        this._goalCooldown = 0;
     }
 
     update(_time, delta) {
@@ -97,9 +92,11 @@ export class GameScene extends Scene {
         this._p1Goalie.update(delta);
         this._p2Goalie.update(delta);
         this._powerUpManager.update(delta);
-        this._ball.update();
+        this._ball.update(delta);
+        if (this._goalCooldown > 0) this._goalCooldown -= delta;
         this._checkGoal();
-        if (this._bgGrid) this._bgGrid.tilePositionY = _time * 0.015;
+        this._manualPaddleCollision();
+        this._updateDashBars();
     }
 
     // ════════════════════════════════════════════════════════
@@ -109,7 +106,7 @@ export class GameScene extends Scene {
     _onBeat() {
         if (this._paused || this._gameOver) return;
         this._beatCount++;
-        const b = this._beatCount;
+        const b     = this._beatCount;
         const isBar  = b % 4 === 0;
         const isHalf = b % 2 === 0;
 
@@ -136,55 +133,51 @@ export class GameScene extends Scene {
                 duration: BATTLE_BEAT_MS * 0.6, ease: 'Expo.easeOut',
             });
         }
-        if (isBar && this._bgGrid) {
-            this.tweens.add({
-                targets: this._bgGrid,
-                alpha: { from: 0.7, to: 0.4 },
-                duration: BATTLE_BEAT_MS * 0.4, ease: 'Expo.easeOut',
-            });
-        }
     }
 
     // ════════════════════════════════════════════════════════
-    //  ARENA
+    //  ARENA — solid bg, no stars/grid, neon border only
     // ════════════════════════════════════════════════════════
 
     _buildArena(W, H) {
-        this.add.rectangle(W/2, H/2, W, H, 0x0a0015);
+        // Solid dark background only — no scrolling grid/stars
+        this.add.rectangle(W / 2, H / 2, W, H, 0x08001a);
 
-        if (!this.textures.exists('gridTileMag')) {
-            const g = this.make.graphics({ add: false });
-            g.lineStyle(1, 0xff2d78, 0.25); g.strokeRect(0,0,64,64);
-            g.generateTexture('gridTileMag', 64, 64); g.destroy();
-        }
-        this._bgGrid = this.add.tileSprite(W/2, H/2, W, H, 'gridTileMag').setAlpha(0.4);
+        // Subtle vignette gradient rings for depth (not stars)
+        const vigGfx = this.add.graphics().setDepth(1).setAlpha(0.3);
+        vigGfx.fillStyle(0x1a0040, 1);
+        vigGfx.fillCircle(W / 2, H / 2, H * 0.6);
 
+        // Neon arena border
         this._arenaBorder = this.add.graphics().setDepth(5).setAlpha(0.15);
         this._arenaBorder.lineStyle(2, 0x00f5ff, 1);
-        this._arenaBorder.strokeRect(40, 40, W-80, H-80);
+        this._arenaBorder.strokeRect(40, 40, W - 80, H - 80);
         this._arenaBorder.lineStyle(3, 0xff2d78, 1);
-        [[40,40],[W-40,40],[40,H-40],[W-40,H-40]].forEach(([cx,cy]) => {
-            const dx = cx < W/2 ? 20 : -20, dy = cy < H/2 ? 20 : -20;
-            this._arenaBorder.strokeLineShape(new Phaser.Geom.Line(cx,cy,cx+dx,cy));
-            this._arenaBorder.strokeLineShape(new Phaser.Geom.Line(cx,cy,cx,cy+dy));
+        [[40, 40], [W - 40, 40], [40, H - 40], [W - 40, H - 40]].forEach(([cx, cy]) => {
+            const dx = cx < W / 2 ? 20 : -20, dy = cy < H / 2 ? 20 : -20;
+            this._arenaBorder.strokeLineShape(new Phaser.Geom.Line(cx, cy, cx + dx, cy));
+            this._arenaBorder.strokeLineShape(new Phaser.Geom.Line(cx, cy, cx, cy + dy));
         });
 
+        // Centre dashed line
         const dash = this.add.graphics().setDepth(5);
-        dash.lineStyle(1, 0x00f5ff, 0.2);
-        for (let y = 52; y < H-52; y += 20)
-            dash.strokeLineShape(new Phaser.Geom.Line(W/2, y, W/2, y+10));
+        dash.lineStyle(1, 0x00f5ff, 0.18);
+        for (let y = 52; y < H - 52; y += 20)
+            dash.strokeLineShape(new Phaser.Geom.Line(W / 2, y, W / 2, y + 10));
 
+        // Centre circle
         const circleGfx = this.add.graphics().setDepth(5).setAlpha(0.08);
         circleGfx.lineStyle(1, 0x00f5ff, 1);
-        circleGfx.strokeCircle(W/2, H/2, 70);
+        circleGfx.strokeCircle(W / 2, H / 2, 70);
         this._centreCircle = circleGfx;
 
+        // Scanlines
         if (!this.textures.exists('scanlines')) {
             const sl = this.make.graphics({ add: false });
-            for (let y = 0; y < H; y += 3) { sl.fillStyle(0x000000, 0.10); sl.fillRect(0,y,W,1); }
+            for (let y = 0; y < H; y += 3) { sl.fillStyle(0x000000, 0.10); sl.fillRect(0, y, W, 1); }
             sl.generateTexture('scanlines', W, H); sl.destroy();
         }
-        this.add.image(W/2, H/2, 'scanlines').setDepth(200);
+        this.add.image(W / 2, H / 2, 'scanlines').setDepth(200);
 
         this.physics.world.setBoundsCollision(false, false, true, true);
         this.physics.world.setBounds(0, 40, W, H - 80);
@@ -201,45 +194,42 @@ export class GameScene extends Scene {
         const drawGoal = (x, col) => {
             const wallGfx = this.add.graphics().setDepth(6);
             wallGfx.fillStyle(col, 0.12);
-            wallGfx.fillRect(x, 40, GOAL_W, cy - GOAL_H/2 - 40);
-            wallGfx.fillRect(x, cy + GOAL_H/2, GOAL_W, H - 40 - (cy + GOAL_H/2));
+            wallGfx.fillRect(x, 40, GOAL_W, cy - GOAL_H / 2 - 40);
+            wallGfx.fillRect(x, cy + GOAL_H / 2, GOAL_W, H - 40 - (cy + GOAL_H / 2));
 
             const edgeGfx = this.add.graphics().setDepth(7);
             edgeGfx.lineStyle(2, col, 0.9);
-            edgeGfx.strokeLineShape(new Phaser.Geom.Line(x, cy - GOAL_H/2, x + GOAL_W, cy - GOAL_H/2));
-            edgeGfx.strokeLineShape(new Phaser.Geom.Line(x, cy + GOAL_H/2, x + GOAL_W, cy + GOAL_H/2));
+            edgeGfx.strokeLineShape(new Phaser.Geom.Line(x, cy - GOAL_H / 2, x + GOAL_W, cy - GOAL_H / 2));
+            edgeGfx.strokeLineShape(new Phaser.Geom.Line(x, cy + GOAL_H / 2, x + GOAL_W, cy + GOAL_H / 2));
 
-            const glow = this.add.rectangle(x + GOAL_W/2, cy, GOAL_W, GOAL_H, col, 0.08).setDepth(4);
+            const glow = this.add.rectangle(x + GOAL_W / 2, cy, GOAL_W, GOAL_H, col, 0.08).setDepth(4);
             this._goalZoneGlows.push(glow);
 
-            const topWall = this.physics.add.staticImage(x + GOAL_W/2, 40 + (cy - GOAL_H/2 - 40)/2, null);
-            topWall.setDisplaySize(GOAL_W, cy - GOAL_H/2 - 40);
-            topWall.refreshBody();
-            topWall.setVisible(false);
+            // Static wall above goal opening
+            const topH = cy - GOAL_H / 2 - 40;
+            if (topH > 0) {
+                const topWall = this.physics.add.staticImage(x + GOAL_W / 2, 40 + topH / 2, null);
+                topWall.setDisplaySize(GOAL_W, topH).refreshBody().setVisible(false);
+                this._goalWallGroup.add(topWall);
+            }
 
-            const botY = cy + GOAL_H/2, botH = H - 40 - botY;
-            const botWall = this.physics.add.staticImage(x + GOAL_W/2, botY + botH/2, null);
-            botWall.setDisplaySize(GOAL_W, botH);
-            botWall.refreshBody();
-            botWall.setVisible(false);
-
-            return { topWall, botWall };
+            // Static wall below goal opening
+            const botY = cy + GOAL_H / 2;
+            const botH = H - 40 - botY;
+            if (botH > 0) {
+                const botWall = this.physics.add.staticImage(x + GOAL_W / 2, botY + botH / 2, null);
+                botWall.setDisplaySize(GOAL_W, botH).refreshBody().setVisible(false);
+                this._goalWallGroup.add(botWall);
+            }
         };
 
-        const left  = drawGoal(0, 0x00f5ff);
-        const right = drawGoal(W - GOAL_W, 0xff2d78);
-
-        this._leftGoalWalls  = left;
-        this._rightGoalWalls = right;
-
         this._goalWallGroup = this.physics.add.staticGroup();
-        [left.topWall, left.botWall, right.topWall, right.botWall].forEach(w => {
-            this._goalWallGroup.add(w);
-        });
+        drawGoal(0, 0x00f5ff);
+        drawGoal(W - GOAL_W, 0xff2d78);
     }
 
     // ════════════════════════════════════════════════════════
-    //  BARRIERS
+    //  BARRIERS — static, no flashing
     // ════════════════════════════════════════════════════════
 
     _buildBarriers(W, H) {
@@ -247,28 +237,26 @@ export class GameScene extends Scene {
         const BW = 16, BH = 56;
         if (!this.textures.exists('barrier_tex')) {
             const gfx = this.make.graphics({ add: false });
-            gfx.fillStyle(0xff6600, 1); gfx.fillRect(0,0,BW,BH);
-            gfx.fillStyle(0xffffff, 0.3); gfx.fillRect(2,0,4,BH);
-            gfx.lineStyle(1, 0xffffff, 0.5); gfx.strokeRect(0,0,BW,BH);
+            gfx.fillStyle(0xff6600, 1);      gfx.fillRect(0, 0, BW, BH);
+            gfx.fillStyle(0xffffff, 0.3);    gfx.fillRect(2, 0, 4, BH);
+            gfx.lineStyle(1, 0xffffff, 0.5); gfx.strokeRect(0, 0, BW, BH);
             gfx.generateTexture('barrier_tex', BW, BH); gfx.destroy();
         }
-        [{ x: W/2, y: H/2-150 }, { x: W/2, y: H/2+150 }].forEach(pos => {
+        [{ x: W / 2, y: H / 2 - 150 }, { x: W / 2, y: H / 2 + 150 }].forEach(pos => {
             const b = this._barriers.create(pos.x, pos.y, 'barrier_tex');
             b.setDepth(8).setImmovable(true);
-            this.tweens.add({ targets: b, alpha: { from: 0.6, to: 1 }, duration: 700, yoyo: true, repeat: -1 });
         });
     }
 
     // ════════════════════════════════════════════════════════
-    //  PLAYERS — paddles roam FULL arena
+    //  PLAYERS
     // ════════════════════════════════════════════════════════
 
     _buildPlayers(W, H) {
         const margin = 50;
-
         this._p1Paddle = new Paddle(this, {
-            x: 160, y: H/2,
-            minX: margin, maxX: W - margin,   // full arena width
+            x: 160, y: H / 2,
+            minX: margin, maxX: W - margin,
             minY: margin, maxY: H - margin,
             tint: 0x00f5ff, label: 'P1', side: 'left', speed: 300,
             upKey:        Phaser.Input.Keyboard.KeyCodes.W,
@@ -282,8 +270,8 @@ export class GameScene extends Scene {
         });
 
         this._p2Paddle = new Paddle(this, {
-            x: W - 160, y: H/2,
-            minX: margin, maxX: W - margin,   // full arena width
+            x: W - 160, y: H / 2,
+            minX: margin, maxX: W - margin,
             minY: margin, maxY: H - margin,
             tint: 0xff2d78, label: 'P2', side: 'right', speed: 300,
             upKey:        Phaser.Input.Keyboard.KeyCodes.UP,
@@ -297,118 +285,189 @@ export class GameScene extends Scene {
         });
     }
 
-    _buildBall(W, H) { this._ball = new Ball(this, W/2, H/2); }
+    _buildBall(W, H)  { this._ball = new Ball(this, W / 2, H / 2); }
 
     _buildGoalies(W, H) {
         const cy = H / 2;
-        // P1 goalie: I / K   (left side)
         this._p1Goalie = new Goalie(this, {
             x: GOAL_W + 30, startY: cy,
             tint: 0x0088aa,
-            railMinY: cy - GOAL_H/2,
-            railMaxY: cy + GOAL_H/2,
+            railMinY: cy - GOAL_H / 2,
+            railMaxY: cy + GOAL_H / 2,
             speed: 260,
             upKey:   Phaser.Input.Keyboard.KeyCodes.I,
             downKey: Phaser.Input.Keyboard.KeyCodes.K,
         });
-        // P2 goalie: NUMPAD_8 / NUMPAD_5   (right side)
         this._p2Goalie = new Goalie(this, {
             x: W - GOAL_W - 30, startY: cy,
             tint: 0xaa0044,
-            railMinY: cy - GOAL_H/2,
-            railMaxY: cy + GOAL_H/2,
+            railMinY: cy - GOAL_H / 2,
+            railMaxY: cy + GOAL_H / 2,
             speed: 260,
-            upKey:   Phaser.Input.Keyboard.KeyCodes.NUMPAD_8,
-            downKey: Phaser.Input.Keyboard.KeyCodes.NUMPAD_5,
+            upKey:   Phaser.Input.Keyboard.KeyCodes.O,
+            downKey: Phaser.Input.Keyboard.KeyCodes.P,
         });
     }
 
     // ════════════════════════════════════════════════════════
-    //  PHYSICS — angle-based ball bounce off paddle
+    //  PHYSICS — manual paddle collision (proper rotated hitbox)
     // ════════════════════════════════════════════════════════
 
     _setupPhysics() {
-        const applyAngledBounce = (ballImg, paddleImg) => {
-            // Find which paddle object this is
-            const paddle = (this._p1Paddle.image === paddleImg) ? this._p1Paddle : this._p2Paddle;
-            const isDash = paddle.isDashing;
-
-            // Paddle surface normal is perpendicular to its angle
-            // Paddle angle 0 = vertical bar, so surface faces horizontally.
-            // Normal angle = paddle.angle (the direction the face points)
-            const paddleAngleRad = Phaser.Math.DegToRad(paddleImg.angle);
-
-            // Current ball velocity
-            const vel = ballImg.body.velocity;
-            const speed = Math.sqrt(vel.x * vel.x + vel.y * vel.y);
-
-            // Surface normal (perpendicular to the paddle's length)
-            // Paddle length is along Y axis when angle=0, so normal is along X
-            const normalX = Math.cos(paddleAngleRad);
-            const normalY = Math.sin(paddleAngleRad);
-
-            // Reflect velocity around the surface normal
-            const dot = vel.x * normalX + vel.y * normalY;
-            let reflX = vel.x - 2 * dot * normalX;
-            let reflY = vel.y - 2 * dot * normalY;
-
-            // Preserve (or boost) speed
-            const newSpeed = Math.min(speed + (isDash ? 36 : 18), 720);
-            const mag = Math.sqrt(reflX * reflX + reflY * reflY) || 1;
-            reflX = (reflX / mag) * newSpeed;
-            reflY = (reflY / mag) * newSpeed;
-
-            // Add some spin based on how far off-centre the hit was
-            const hitOffsetY = ballImg.y - paddleImg.y;
-            const spinFactor = hitOffsetY / 40;  // -1 to 1 range
-            reflY += spinFactor * 80;
-
-            ballImg.setVelocity(reflX, reflY);
-            this._ball._speed = newSpeed;
-
-            this._flash(0x00f5ff, isDash ? 120 : 55);
-            try {
-                this.sound.play('pingSFX', { volume: isDash ? 0.6 : 0.4, detune: isDash ? 400 : 0 });
-            } catch(_) {}
-        };
-
-        this.physics.add.collider(this._ball.image, this._p1Paddle.image, applyAngledBounce);
-        this.physics.add.collider(this._ball.image, this._p2Paddle.image, applyAngledBounce);
-        this.physics.add.collider(this._ball.image, this._p1Goalie.image, (_b) => {
+        // Goalie and barrier collisions still use Arcade Physics (axis-aligned, fine)
+        this.physics.add.collider(this._ball.image, this._p1Goalie.image, () => {
             this._ball.accelerate(1);
             try { this.sound.play('pingSFX', { volume: 0.3 }); } catch(_) {}
         });
-        this.physics.add.collider(this._ball.image, this._p2Goalie.image, (_b) => {
+        this.physics.add.collider(this._ball.image, this._p2Goalie.image, () => {
             this._ball.accelerate(1);
             try { this.sound.play('pingSFX', { volume: 0.3 }); } catch(_) {}
         });
         this.physics.add.collider(this._ball.image, this._barriers, () => {
-            this._flash(0xff6600, 40);
             try { this.sound.play('pingSFX', { volume: 0.25, detune: -300 }); } catch(_) {}
         });
         this.physics.add.collider(this._ball.image, this._goalWallGroup);
+
+        // Per-paddle cooldown to prevent multi-frame sticking
+        this._p1HitCooldown = 0;
+        this._p2HitCooldown = 0;
+    }
+
+    // ── Manual rotated-paddle collision (runs every frame) ──
+    // Treats the paddle as an oriented rectangle, projects the ball
+    // onto the paddle's local axes to find overlap and resolve.
+
+    _manualPaddleCollision() {
+        this._resolveRotatedPaddle(this._p1Paddle, 1);
+        this._resolveRotatedPaddle(this._p2Paddle, 2);
+    }
+
+    _resolveRotatedPaddle(paddle, id) {
+        // Tick per-paddle cooldown
+        if (id === 1) {
+            if (this._p1HitCooldown > 0) { this._p1HitCooldown--; return; }
+        } else {
+            if (this._p2HitCooldown > 0) { this._p2HitCooldown--; return; }
+        }
+
+        const ball    = this._ball.image;
+        const padImg  = paddle.image;
+
+        const bx = ball.x, by = ball.y;
+        const px = padImg.x, py = padImg.y;
+
+        // Paddle half-extents (texture is 14×80)
+        const halfW = 7;   // half of paddle width  (local X)
+        const halfH = 40;  // half of paddle height (local Y)
+
+        // Paddle local axes in world space
+        const angleRad = Phaser.Math.DegToRad(padImg.angle);
+        const cosA = Math.cos(angleRad), sinA = Math.sin(angleRad);
+
+        // Vector from paddle centre to ball
+        const dx = bx - px, dy = by - py;
+
+        // Project onto paddle's local axes
+        const localX = dx * cosA + dy * sinA;   // along paddle width
+        const localY = -dx * sinA + dy * cosA;  // along paddle length
+
+        // Expand hitbox by ball radius
+        const overlapX = (halfW + BALL_R) - Math.abs(localX);
+        const overlapY = (halfH + BALL_R) - Math.abs(localY);
+
+        if (overlapX <= 0 || overlapY <= 0) return; // no collision
+
+        // ── Resolve: push ball out along the axis of least penetration ──
+        const vel = ball.body.velocity;
+        const speed = Math.sqrt(vel.x * vel.x + vel.y * vel.y) || this._ball._speed;
+
+        let nx, ny; // world-space normal to bounce off
+
+        if (overlapX < overlapY) {
+            // Penetrating through the side (width face) — bounce off side
+            const sign = localX > 0 ? 1 : -1;
+            nx =  cosA * sign;
+            ny =  sinA * sign;
+            // Push ball out
+            ball.x += nx * overlapX;
+            ball.y += ny * overlapX;
+        } else {
+            // Penetrating through the top/bottom (length face) — bounce off end
+            const sign = localY > 0 ? 1 : -1;
+            nx = -sinA * sign;
+            ny =  cosA * sign;
+            // Push ball out
+            ball.x += nx * overlapY;
+            ball.y += ny * overlapY;
+        }
+
+        // Make sure the normal points away from the paddle
+        const dot = vel.x * nx + vel.y * ny;
+        // If ball already moving away, skip (prevents double-bounce)
+        if (dot > 0) return;
+
+        // Reflect velocity off the surface normal
+        let rvx = vel.x - 2 * dot * nx;
+        let rvy = vel.y - 2 * dot * ny;
+
+        // Add spin based on hit position along the paddle's long axis
+        const hitOffset = localY / (halfH || 1);   // -1 to +1
+        // Spin contribution perpendicular to normal
+        const perpX = -ny, perpY = nx;
+        rvx += perpX * hitOffset * 100;
+        rvy += perpY * hitOffset * 100;
+
+        // Speed up on hit; dash hit calls dashBoost() for a decaying burst
+        const isDash = paddle.isDashing;
+        const newSpeed = Math.min(speed + 18, 720);
+        const mag = Math.sqrt(rvx * rvx + rvy * rvy) || 1;
+        rvx = (rvx / mag) * newSpeed;
+        rvy = (rvy / mag) * newSpeed;
+
+        ball.setVelocity(rvx, rvy);
+        this._ball.speed = newSpeed;
+
+        if (isDash) {
+            this._ball.dashBoost();
+        }
+
+        // Set cooldown frames to prevent sticking (6 frames)
+        if (id === 1) this._p1HitCooldown = 6;
+        else          this._p2HitCooldown = 6;
+
+        try { this.sound.play('pingSFX', { volume: isDash ? 0.6 : 0.4, detune: isDash ? 400 : 0 }); } catch(_) {}
     }
 
     // ════════════════════════════════════════════════════════
-    //  GOAL DETECTION
+    //  GOAL DETECTION — uses ball edge, not center
     // ════════════════════════════════════════════════════════
 
     _checkGoal() {
+        if (this._goalCooldown > 0) return;
+
         const bx = this._ball.x, by = this._ball.y;
         const cy = this._H / 2;
-        const inOpening = Math.abs(by - cy) < GOAL_H / 2;
 
-        if (bx < GOAL_W && inOpening)                this._scoreGoal(1);
-        else if (bx > this._W - GOAL_W && inOpening) this._scoreGoal(0);
-        else if (bx < 10)           this._ball.image.setVelocityX( Math.abs(this._ball.body.velocity.x));
-        else if (bx > this._W - 10) this._ball.image.setVelocityX(-Math.abs(this._ball.body.velocity.x));
+        // Ball edge positions
+        const ballLeft  = bx - BALL_R;
+        const ballRight = bx + BALL_R;
+
+        // Check if the ball's center Y is within the goal opening
+        const inOpening = Math.abs(by - cy) < GOAL_H / 2 - BALL_R;
+
+        if (ballLeft <= GOAL_W && inOpening) {
+            this._scoreGoal(1);   // P2 scores
+        } else if (ballRight >= this._W - GOAL_W && inOpening) {
+            this._scoreGoal(0);   // P1 scores
+        }
     }
 
     _scoreGoal(scorer) {
+        this._goalCooldown = 1200; // prevent re-trigger
         this._scores[scorer]++;
         this._updateScoreDisplay();
         this._flash(scorer === 0 ? 0x00f5ff : 0xff2d78, 250);
-        this._ball.reset(this._W/2, this._H/2);
+        this._ball.reset(this._W / 2, this._H / 2);
         if (this._scores[scorer] >= WINNING_SCORE) {
             this._triggerWin(scorer);
         } else {
@@ -421,30 +480,48 @@ export class GameScene extends Scene {
     // ════════════════════════════════════════════════════════
 
     _buildHUD(W, H) {
-        this._p1ScoreTxt = this.add.text(W/2 - 80, 10, '0', {
+        this._p1ScoreTxt = this.add.text(W / 2 - 80, 10, '0', {
             fontFamily: '"Courier New", Courier, monospace',
             fontSize: '40px', fontStyle: 'bold', color: '#00f5ff',
             stroke: '#00f5ff', strokeThickness: 1,
         }).setOrigin(0.5, 0).setDepth(20);
 
-        this._p2ScoreTxt = this.add.text(W/2 + 80, 10, '0', {
+        this._p2ScoreTxt = this.add.text(W / 2 + 80, 10, '0', {
             fontFamily: '"Courier New", Courier, monospace',
             fontSize: '40px', fontStyle: 'bold', color: '#ff2d78',
             stroke: '#ff2d78', strokeThickness: 1,
         }).setOrigin(0.5, 0).setDepth(20);
 
-        this.add.text(W/2, 12, ':', {
-            fontFamily: '"Courier New", Courier, monospace',
-            fontSize: '30px', color: '#ffffff',
+        this.add.text(W / 2, 12, ':', {
+            fontFamily: '"Courier New", Courier, monospace', fontSize: '30px', color: '#ffffff',
         }).setOrigin(0.5, 0).setDepth(20);
 
-        this.add.text(W/2, H - 10,
+        this.add.text(W / 2, H - 10,
             'P1: WASD MOVE  Q/E ROTATE  SHIFT DASH  F QUAKE  I/K GOALIE  |  ' +
             'P2: ARROWS MOVE  ,/. ROTATE  / DASH  L QUAKE  NUM8/5 GOALIE  |  ESC PAUSE',
             { fontFamily: '"Courier New", Courier, monospace', fontSize: '9px', color: '#442233' }
         ).setOrigin(0.5, 1).setDepth(20);
 
-        // Pause button (top-right)
+        // ── Top-screen dash cooldown bars ─────────────────────────
+        // P1 bar: left of centre, P2 bar: right of centre
+        const barW = 120, barH = 4, barY = 6;
+        const p1BarX = W / 2 - 160;
+        const p2BarX = W / 2 + 40;
+
+        // Backgrounds
+        const barBg = this.add.graphics().setDepth(21);
+        barBg.fillStyle(0x000000, 0.45);
+        barBg.fillRect(p1BarX, barY, barW, barH);
+        barBg.fillRect(p2BarX, barY, barW, barH);
+
+        // P1 dash fill (cyan)
+        this._p1DashBarGfx = this.add.graphics().setDepth(22);
+        // P2 dash fill (pink)
+        this._p2DashBarGfx = this.add.graphics().setDepth(22);
+
+        this._dashBarMeta = { barW, barH, barY, p1BarX, p2BarX };
+
+        // Pause button top-right
         const pauseGfx = this.add.graphics().setDepth(25);
         const drawPauseBtn = (hover) => {
             pauseGfx.clear();
@@ -460,17 +537,6 @@ export class GameScene extends Scene {
         pauseZone.on('pointerover', () => { pauseTxt.setColor('#00f5ff'); drawPauseBtn(true); });
         pauseZone.on('pointerout',  () => { pauseTxt.setColor('#443355'); drawPauseBtn(false); });
         pauseZone.on('pointerdown', () => this._togglePause());
-
-        // Back button (top-left)
-        const gfx2 = this.add.graphics().setDepth(25);
-        gfx2.lineStyle(1, 0x443355, 0.8); gfx2.strokeRect(10, 8, 100, 26);
-        const bTxt = this.add.text(60, 21, '◀  MENU', {
-            fontFamily: '"Courier New", Courier, monospace', fontSize: '12px', color: '#443355',
-        }).setOrigin(0.5).setDepth(25);
-        const bZone = this.add.zone(60, 21, 100, 26).setInteractive({ useHandCursor: true }).setDepth(25);
-        bZone.on('pointerover', () => bTxt.setColor('#00f5ff'));
-        bZone.on('pointerout',  () => bTxt.setColor('#443355'));
-        bZone.on('pointerdown', () => { if (this._music) this._music.stop(); this.scene.start('ModeSelect'); });
     }
 
     _updateScoreDisplay() {
@@ -489,40 +555,129 @@ export class GameScene extends Scene {
         this._gameOver = true;
         if (this._beatLoop) this._beatLoop.remove();
         if (this._music)    this._music.stop();
+
         const W = this._W, H = this._H;
         const label  = winner === 0 ? 'P1 WINS!' : 'P2 WINS!';
         const color  = winner === 0 ? '#00f5ff'  : '#ff2d78';
         const hexCol = winner === 0 ? 0x00f5ff   : 0xff2d78;
+        const r = (hexCol >> 16) & 0xff;
+        const g = (hexCol >> 8)  & 0xff;
+        const b =  hexCol        & 0xff;
 
-        this.add.rectangle(W/2, H/2, W, H, 0x000000, 0.75).setDepth(50);
-        this.cameras.main.flash(500, hexCol >> 16, (hexCol >> 8) & 0xff, hexCol & 0xff);
+        // ── 1. Dim overlay fades in ───────────────────────────────
+        const overlay = this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0).setDepth(50);
+        this.tweens.add({ targets: overlay, alpha: 0.80, duration: 500, ease: 'Quad.easeIn' });
 
-        this.add.text(W/2, H/2 - 70, label, {
+        // ── 2. Victory music starts immediately ───────────────────
+        try {
+            if (this.cache.audio.exists('clearSFX')) {
+                this._clearMusic = this.sound.add('clearSFX', { loop: false, volume: 0.75 });
+                this._clearMusic.play();
+            }
+        } catch(_) {}
+
+        // ── 3. Camera flash after short delay ─────────────────────
+        this.time.delayedCall(250, () => {
+            this.cameras.main.flash(500, r, g, b);
+        });
+
+        // ── 4. Particle burst from centre ─────────────────────────
+        this.time.delayedCall(300, () => {
+            for (let i = 0; i < 28; i++) {
+                const angle = (i / 28) * Math.PI * 2;
+                const dist  = Phaser.Math.Between(80, 340);
+                const col   = i % 3 === 0 ? 0xffffff : hexCol;
+                const p     = this.add.graphics().setDepth(55);
+                const sz    = Phaser.Math.Between(3, 9);
+                p.fillStyle(col, 1);
+                p.fillRect(-sz / 2, -sz / 2, sz, sz);
+                p.setPosition(W / 2, H / 2);
+                this.tweens.add({
+                    targets: p,
+                    x: W / 2 + Math.cos(angle) * dist,
+                    y: H / 2 + Math.sin(angle) * dist,
+                    alpha: 0,
+                    angle: Phaser.Math.Between(-360, 360),
+                    duration: Phaser.Math.Between(500, 1100),
+                    ease: 'Quad.easeOut',
+                    onComplete: () => p.destroy(),
+                });
+            }
+        });
+
+        // ── 5. Winner text drops in from above ────────────────────
+        const winTxt = this.add.text(W / 2, -100, label, {
             fontFamily: '"Courier New", Courier, monospace',
             fontSize: '88px', fontStyle: 'bold', color,
             stroke: color, strokeThickness: 2,
             shadow: { offsetX: 0, offsetY: 0, color, blur: 30, fill: true },
-        }).setOrigin(0.5).setDepth(51);
+        }).setOrigin(0.5).setDepth(56).setAlpha(0);
 
-        this.add.text(W/2, H/2 + 24, `${this._scores[0]}  :  ${this._scores[1]}`, {
-            fontFamily: '"Courier New", Courier, monospace', fontSize: '44px', color: '#ffffff',
-        }).setOrigin(0.5).setDepth(51);
+        this.time.delayedCall(400, () => {
+            this.tweens.add({
+                targets: winTxt,
+                y: H / 2 - 90, alpha: 1,
+                duration: 500, ease: 'Back.easeOut',
+            });
+        });
 
-        this._makeWinBtn(W/2-150, H/2+120, 'REMATCH', 0x00f5ff, () => this.scene.restart());
-        this._makeWinBtn(W/2+150, H/2+120, 'MENU',    0xff2d78, () => { this.scene.start('ModeSelect'); });
+        // ── 6. Score slides up from below ─────────────────────────
+        const scoreTxt = this.add.text(W / 2, H + 50, `${this._scores[0]}  :  ${this._scores[1]}`, {
+            fontFamily: '"Courier New", Courier, monospace',
+            fontSize: '44px', color: '#ffffff',
+            shadow: { offsetX: 0, offsetY: 0, color, blur: 12, fill: true },
+        }).setOrigin(0.5).setDepth(56).setAlpha(0);
+
+        this.time.delayedCall(750, () => {
+            this.tweens.add({
+                targets: scoreTxt,
+                y: H / 2 + 8, alpha: 1,
+                duration: 420, ease: 'Back.easeOut',
+            });
+        });
+
+        // ── 7. Neon divider sweeps across ─────────────────────────
+        const divLine = this.add.graphics().setDepth(56).setAlpha(0);
+        this.time.delayedCall(1000, () => {
+            divLine.lineStyle(2, hexCol, 0.6);
+            divLine.strokeLineShape(new Phaser.Geom.Line(W * 0.15, H / 2 + 42, W * 0.85, H / 2 + 42));
+            this.tweens.add({ targets: divLine, alpha: 1, duration: 280 });
+        });
+
+        // ── 8. Buttons fade up ────────────────────────────────────
+        this.time.delayedCall(1200, () => {
+            this._makeWinBtn(W / 2 - 150, H / 2 + 118, 'REMATCH', 0x00f5ff, () => {
+                if (this._clearMusic) this._clearMusic.stop();
+                this.scene.restart();
+            });
+            this._makeWinBtn(W / 2 + 150, H / 2 + 118, 'MENU', 0xff2d78, () => {
+                if (this._clearMusic) this._clearMusic.stop();
+                this.scene.start('ModeSelect');
+            });
+        });
+
+        // ── 9. Subtle pulsing glow behind title ───────────────────
+        const glow = this.add.rectangle(W / 2, H / 2 - 90, W * 0.85, 120, hexCol, 0).setDepth(51);
+        this.time.delayedCall(700, () => {
+            this.tweens.add({
+                targets: glow, alpha: 0.08,
+                duration: 700, ease: 'Sine.easeIn',
+                yoyo: true, repeat: -1,
+            });
+        });
     }
 
     _makeWinBtn(x, y, label, color, cb) {
         const gfx = this.add.graphics().setDepth(52);
-        gfx.lineStyle(2,color,1); gfx.strokeRect(x-110,y-28,220,56);
-        gfx.fillStyle(color,0.12); gfx.fillRect(x-110,y-28,220,56);
+        gfx.lineStyle(2, color, 1); gfx.strokeRect(x - 110, y - 28, 220, 56);
+        gfx.fillStyle(color, 0.12); gfx.fillRect(x - 110, y - 28, 220, 56);
         this.add.text(x, y, label, {
-            fontFamily:'"Courier New", Courier, monospace', fontSize:'22px', fontStyle:'bold', color:'#ffffff'
+            fontFamily: '"Courier New", Courier, monospace', fontSize: '22px', fontStyle: 'bold', color: '#ffffff',
         }).setOrigin(0.5).setDepth(53);
         const zone = this.add.zone(x, y, 220, 56).setInteractive({ useHandCursor: true }).setDepth(53);
         zone.on('pointerover', () => {
-            gfx.clear(); gfx.lineStyle(2,color,1); gfx.strokeRect(x-110,y-28,220,56);
-            gfx.fillStyle(color,0.35); gfx.fillRect(x-110,y-28,220,56);
+            gfx.clear(); gfx.lineStyle(2, color, 1); gfx.strokeRect(x - 110, y - 28, 220, 56);
+            gfx.fillStyle(color, 0.35); gfx.fillRect(x - 110, y - 28, 220, 56);
         });
         zone.on('pointerdown', cb);
     }
@@ -532,19 +687,17 @@ export class GameScene extends Scene {
     // ════════════════════════════════════════════════════════
 
     _buildPauseMenu(W, H) {
-        this._pauseGroup = this.add.container(W/2, H/2).setDepth(80).setVisible(false);
-        const overlay   = this.add.rectangle(0, 0, W, H, 0x000000, 0.8);
+        this._pauseGroup = this.add.container(W / 2, H / 2).setDepth(80).setVisible(false);
+        const overlay   = this.add.rectangle(0, 0, W, H, 0x000000, 0.82);
         const title     = this.add.text(0, -90, 'PAUSED', {
-            fontFamily:'"Courier New", Courier, monospace', fontSize:'60px', fontStyle:'bold', color:'#00f5ff',
-            stroke:'#ff2d78', strokeThickness:2,
+            fontFamily: '"Courier New", Courier, monospace', fontSize: '60px', fontStyle: 'bold', color: '#00f5ff',
+            stroke: '#ff2d78', strokeThickness: 2,
         }).setOrigin(0.5);
-
         const resumeTxt = this.add.text(0, 20, '▶  RESUME', {
-            fontFamily:'"Courier New", Courier, monospace', fontSize:'24px', color:'#00f5ff'
+            fontFamily: '"Courier New", Courier, monospace', fontSize: '24px', color: '#00f5ff',
         }).setOrigin(0.5).setInteractive({ useHandCursor: true });
-
-        const menuTxt = this.add.text(0, 72, '⬅  MAIN MENU', {
-            fontFamily:'"Courier New", Courier, monospace', fontSize:'24px', color:'#ff2d78'
+        const menuTxt   = this.add.text(0, 72, '⬅  MAIN MENU', {
+            fontFamily: '"Courier New", Courier, monospace', fontSize: '24px', color: '#ff2d78',
         }).setOrigin(0.5).setInteractive({ useHandCursor: true });
 
         resumeTxt.on('pointerover',  () => resumeTxt.setAlpha(0.7));
@@ -569,11 +722,31 @@ export class GameScene extends Scene {
     }
 
     // ════════════════════════════════════════════════════════
+    //  DASH COOLDOWN BARS (top of screen)
+    // ════════════════════════════════════════════════════════
+
+    _updateDashBars() {
+        if (!this._dashBarMeta) return;
+        const { barW, barH, barY, p1BarX, p2BarX } = this._dashBarMeta;
+        const DASH_COOLDOWN = 1200;
+
+        const p1Fill = 1 - Phaser.Math.Clamp(this._p1Paddle.dashCooldown / DASH_COOLDOWN, 0, 1);
+        this._p1DashBarGfx.clear();
+        this._p1DashBarGfx.fillStyle(0x00f5ff, 0.85);
+        this._p1DashBarGfx.fillRect(p1BarX, barY, barW * p1Fill, barH);
+
+        const p2Fill = 1 - Phaser.Math.Clamp(this._p2Paddle.dashCooldown / DASH_COOLDOWN, 0, 1);
+        this._p2DashBarGfx.clear();
+        this._p2DashBarGfx.fillStyle(0xff2d78, 0.85);
+        this._p2DashBarGfx.fillRect(p2BarX, barY, barW * p2Fill, barH);
+    }
+
+    // ════════════════════════════════════════════════════════
     //  HELPERS
     // ════════════════════════════════════════════════════════
 
     _flash(color, duration = 80) {
-        const f = this.add.rectangle(this._W/2, this._H/2, this._W, this._H, color, 0.15).setDepth(60);
+        const f = this.add.rectangle(this._W / 2, this._H / 2, this._W, this._H, color, 0.15).setDepth(60);
         this.tweens.add({ targets: f, alpha: 0, duration, onComplete: () => f.destroy() });
     }
 

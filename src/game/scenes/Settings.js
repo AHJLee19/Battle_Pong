@@ -43,8 +43,8 @@ export class SettingsScene extends Scene {
         div.strokeLineShape(new Phaser.Geom.Line(px + 30, py + 70, px + PW - 30, py + 70));
 
         this._buildKeyTable(W, H, px, py, PW, PH);
-        this._buildToggle(W, py + PH - 130, 'MUSIC', this._musicOn, v => { this._musicOn = v; });
-        this._buildToggle(W, py + PH - 80,  'SFX',   this._sfxOn,  v => { this._sfxOn   = v; });
+        // this._buildToggle(W, py + PH - 130, 'MUSIC', this._musicOn, v => { this._musicOn = v; });
+        // this._buildToggle(W, py + PH - 80,  'SFX',   this._sfxOn,  v => { this._sfxOn   = v; });
         this._buildCloseButton(W, py + PH - 30);
     }
 
@@ -96,8 +96,8 @@ export class SettingsScene extends Scene {
                 rows: [
                     ['Dash / Use Power-Up', 'SHIFT',  '/'],
                     ['Quake (built-in)', 'F', 'L'],
-                    ['Goalie Up',  'I',  'NUM 8'],
-                    ['Goalie Down','K',  'NUM 5'],
+                    ['Goalie Up',  'I',  'O'],
+                    ['Goalie Down','K',  'P'],
                 ],
             },
             {

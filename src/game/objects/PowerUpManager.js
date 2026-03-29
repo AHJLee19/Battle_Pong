@@ -1,7 +1,6 @@
 // src/game/objects/PowerUpManager.js
 import { PowerUp } from './PowerUp.js';
 
-const TYPES        = ['DASH', 'QUAKE'];
 const SPAWN_MIN_MS = 8000;
 const SPAWN_MAX_MS = 14000;
 const MAX_ACTIVE   = 2;
@@ -40,8 +39,7 @@ export class PowerUpManager {
     const x  = Phaser.Math.Between(W/2 - 180, W/2 + 180);
     const y  = Phaser.Math.Between(m, H - m);
     if (this._active.some(pu => Phaser.Math.Distance.Between(pu._sprite.x, pu._sprite.y, x, y) < 80)) return;
-    const type = TYPES[Math.floor(Math.random() * TYPES.length)];
-    this._active.push(new PowerUp(this.scene, x, y, type));
+    this._active.push(new PowerUp(this.scene, x, y, 'QUAKE'));
   }
 
   _randomInterval() {

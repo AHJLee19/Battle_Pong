@@ -1,22 +1,15 @@
 // src/game/objects/Paddle.js
-// ─────────────────────────────────────────────────────────────
-//  Changes:
-//  • Paddles can roam the FULL arena (minX/maxX cover whole screen)
-//  • Dash goes straight right (P1) or straight left (P2), only when not moving
-//  • Power-ups are STORED and activated on command (dashKey / quakeKey)
-//    — player can hold one power-up at a time
-//  • Rotation physics: ball bounce angle reflects paddle angle
-//  • Quake built-in (key-triggered, separate cooldown)
-// ─────────────────────────────────────────────────────────────
-import { PowerUp } from './PowerUp.js';
+// Dash is always available (recharges). No DASH powerup.
+// Only QUAKE powerup can be stored (max 1).
+// Cooldown bars live in the HUD (Game.js), not on the paddle.
 
-const ROTATE_SPEED    = 120;   // deg/s
-const DASH_SPEED      = 900;   // px/s during built-in dash
-const DASH_DURATION   = 180;   // ms
-const DASH_COOLDOWN   = 1200;  // ms — for the built-in dash (no power-up needed)
-const QUAKE_COOLDOWN  = 5000;  // ms
-const QUAKE_RADIUS    = 340;
-const QUAKE_PUSH      = 180;
+const ROTATE_SPEED   = 120;   // deg/s
+const DASH_SPEED     = 900;   // px/s
+const DASH_DURATION  = 180;   // ms
+const DASH_COOLDOWN  = 1200;  // ms
+const QUAKE_COOLDOWN = 5000;  // ms
+const QUAKE_RADIUS   = 180;
+const QUAKE_PUSH     = 140;
 
 export class Paddle {
   constructor(scene, opts) {
@@ -26,30 +19,31 @@ export class Paddle {
     this.speed  = opts.speed ?? 300;
     this.side   = opts.side  ?? 'left';
 
-    // Full-arena bounds
     this.minX = opts.minX ?? 40;
     this.maxX = opts.maxX ?? scene.scale.width  - 40;
     this.minY = opts.minY ?? 40;
     this.maxY = opts.maxY ?? scene.scale.height - 40;
 
-    // Built-in dash / quake state
     this._dashing       = false;
     this._dashCooldown  = 0;
     this._dashVelX      = 0;
+    this._dashVelY      = 0;
     this._dashTimer     = 0;
     this._quakeCooldown = 0;
     this._trail         = [];
     this._trailTimer    = 0;
 
-    // Stored power-up slot
-    this._storedPowerUp = null;   // 'DASH' | 'QUAKE' | null
-    this._playerIndex   = opts.side === 'left' ? 0 : 1;
+    // Only QUAKE can be stored
+    this._storedQuake = false;
+
+    // Last movement direction for dash
+    this._lastVx = opts.side === 'left' ? 1 : -1;
+    this._lastVy = 0;
 
     this._buildSprite(opts.x, opts.y);
     this._setupKeys(opts);
     this._buildLabel(opts.label, opts.side);
-    this._buildCooldownBars(opts);
-    this._buildStoredPowerUpDisplay(opts);
+    this._buildQuakeIcon(opts);
   }
 
   // ── Public API ────────────────────────────────────────────
@@ -63,31 +57,29 @@ export class Paddle {
     this._handleRotation(delta);
     this._tickCooldowns(delta);
     this._updateTrail();
-    this._updateCooldownBars();
     this._updateLabelPos();
-    this._updateStoredDisplay();
+    this._updateQuakeIcon();
   }
 
-  /** Store a collected power-up (overrides previous if any) */
-  storePowerUp(type, playerIndex) {
-    this._storedPowerUp = type;
-    this._playerIndex   = playerIndex;
-    this._showLabel('GOT ' + type + '!', type === 'DASH' ? 0x00ffcc : 0xff6600, 900);
+  /** Called when player touches a QUAKE powerup. Max 1 stored. */
+  storePowerUp(type) {
+    if (type === 'QUAKE') {
+      if (this._storedQuake) return;
+      this._storedQuake = true;
+      this._showLabel('GOT QUAKE!', 0xff6600, 900);
+    }
   }
 
-  /** Returns true if the paddle is currently moving via keys */
-  _isMoving() {
-    return (this._keys.up?.isDown  || this._keys.down?.isDown ||
-            this._keys.left?.isDown || this._keys.right?.isDown) ?? false;
-  }
+  /** Expose cooldowns so Game.js HUD bars can read them */
+  get dashCooldown()  { return this._dashCooldown; }
+  get quakeCooldown() { return this._quakeCooldown; }
+  get hasQuake()      { return this._storedQuake; }
+  get isDashing()     { return this._dashing; }
+  get body()          { return this.image.body; }
+  get x()             { return this.image.x; }
+  get y()             { return this.image.y; }
+  get angle()         { return this.image.angle; }
 
-  get isDashing() { return this._dashing; }
-  get body()      { return this.image.body; }
-  get x()         { return this.image.x; }
-  get y()         { return this.image.y; }
-  get angle()     { return this.image.angle; }
-
-  // Compat stubs for PowerUp.js
   get railX()    { return this.image.x; }
   get railMinY() { return this.minY; }
   get railMaxY() { return this.maxY; }
@@ -95,12 +87,8 @@ export class Paddle {
   destroy() {
     this.image.destroy();
     this._label?.destroy();
-    this._dashBar?.destroy();
-    this._quakeBar?.destroy();
-    this._dashBg?.destroy();
-    this._quakeBg?.destroy();
-    this._storedIcon?.destroy();
-    this._storedBg?.destroy();
+    this._quakeIconBg?.destroy();
+    this._quakeIconTxt?.destroy();
     this._trail.forEach(t => t.destroy());
   }
 
@@ -117,6 +105,11 @@ export class Paddle {
 
     if (vx !== 0 && vy !== 0) { vx *= 0.707; vy *= 0.707; }
 
+    if (vx !== 0 || vy !== 0) {
+      this._lastVx = vx;
+      this._lastVy = vy;
+    }
+
     const nx = Phaser.Math.Clamp(this.image.x + vx * dt, this.minX, this.maxX);
     const ny = Phaser.Math.Clamp(this.image.y + vy * dt, this.minY, this.maxY);
     this.image.setPosition(nx, ny);
@@ -130,44 +123,47 @@ export class Paddle {
     if (this._keys.rotateCCW?.isDown) dAngle = -ROTATE_SPEED * dt;
     if (dAngle !== 0) this.image.setAngle(this.image.angle + dAngle);
 
-    // Built-in dash — only fires if no stored power-up occupying the slot
-    if (this._storedPowerUp === null && this._dashCooldown <= 0 &&
-        Phaser.Input.Keyboard.JustDown(this._keys.dash)) {
-      this._startBuiltinDash();
+    // Dash key
+    if (Phaser.Input.Keyboard.JustDown(this._keys.dash) && this._dashCooldown <= 0) {
+      this._startDash();
     }
 
-    // Use stored power-up
-    if (this._storedPowerUp && Phaser.Input.Keyboard.JustDown(this._keys.dash)) {
-      if (this._storedPowerUp === 'DASH')  this._useStoredDash();
-      if (this._storedPowerUp === 'QUAKE') this._useStoredQuake();
-      this._storedPowerUp = null;
-    }
-
-    // Built-in quake
-    if (this._quakeCooldown <= 0 && Phaser.Input.Keyboard.JustDown(this._keys.quake)) {
+    // Quake key — only fires if we have a stored quake
+    if (Phaser.Input.Keyboard.JustDown(this._keys.quake) && this._storedQuake) {
+      this._storedQuake = false;
       this._startQuake();
     }
   }
 
-  // ── Built-in Dash ─────────────────────────────────────────
-  // Always goes straight horizontally (right for P1, left for P2)
-  // Only dashes if player is NOT pressing any movement key
+  // ── Dash ──────────────────────────────────────────────────
 
-  _startBuiltinDash() {
-    if (this._isMoving()) return;  // no dash while moving
+  _computeDashDirection() {
+    let vx = 0, vy = 0;
+    if (this._keys.up?.isDown)    vy = -1;
+    if (this._keys.down?.isDown)  vy =  1;
+    if (this._keys.left?.isDown)  vx = -1;
+    if (this._keys.right?.isDown) vx =  1;
 
-    this._dashing     = true;
-    this._dashTimer   = DASH_DURATION;
-    this._dashCooldown= DASH_COOLDOWN;
+    if (vx === 0 && vy === 0) {
+      vx = this._lastVx || (this.side === 'left' ? 1 : -1);
+      vy = this._lastVy || 0;
+    }
 
-    // Straight horizontal direction based on side
-    this._dashVelX = this.side === 'left' ? DASH_SPEED : -DASH_SPEED;
-    this._dashVelY = 0;
+    const mag = Math.sqrt(vx * vx + vy * vy) || 1;
+    this._dashVelX = (vx / mag) * DASH_SPEED;
+    this._dashVelY = (vy / mag) * DASH_SPEED;
+  }
+
+  _startDash() {
+    this._dashing      = true;
+    this._dashTimer    = DASH_DURATION;
+    this._dashCooldown = DASH_COOLDOWN;
+    this._computeDashDirection();
 
     this.image.setTint(0xffffff);
     this.scene.time.delayedCall(DASH_DURATION, () => this.image.clearTint());
     try { this.scene.sound.play('dashSFX', { volume: 0.5 }); } catch(_) {}
-    this._showLabel('DASH!', this.tint, 600);
+    this._showLabel('DASH!', this.tint, 500);
   }
 
   _tickDash(delta) {
@@ -180,27 +176,15 @@ export class Paddle {
     this.image.body.reset(nx, ny);
   }
 
-  // ── Stored power-up activation ────────────────────────────
-
-  _useStoredDash() {
-    // PowerUp.activateDash handles trail + tween + sound
-    PowerUp.activateDash(this.scene, this, this._playerIndex);
-  }
-
-  _useStoredQuake() {
-    PowerUp.activateQuake(this.scene, this, this._playerIndex);
-  }
-
-  // ── Built-in Quake ────────────────────────────────────────
+  // ── Quake ─────────────────────────────────────────────────
 
   _startQuake() {
     this._quakeCooldown = QUAKE_COOLDOWN;
     const scene = this.scene, ox = this.image.x, oy = this.image.y;
 
-    // Shockwave ring
     const ring = scene.add.graphics().setDepth(30);
     scene.tweens.addCounter({
-      from: 0, to: QUAKE_RADIUS, duration: 500, ease: 'Quad.easeOut',
+      from: 0, to: QUAKE_RADIUS, duration: 400, ease: 'Quad.easeOut',
       onUpdate: t => {
         const r = t.getValue();
         ring.clear();
@@ -214,121 +198,82 @@ export class Paddle {
 
     const hexGfx = scene.add.graphics().setDepth(29);
     scene.tweens.addCounter({
-      from: 0, to: 1, duration: 450, ease: 'Quad.easeOut',
+      from: 0, to: 1, duration: 360, ease: 'Quad.easeOut',
       onUpdate: t => {
         const s = t.getValue(), r = s * QUAKE_RADIUS * 0.85;
         hexGfx.clear();
-        hexGfx.lineStyle(2, 0xff6600, (1-s)*0.8);
+        hexGfx.lineStyle(2, 0xff6600, (1 - s) * 0.8);
         const pts = Array.from({ length: 6 }, (_, i) => ({
-          x: ox + Math.cos((i/6)*Math.PI*2 - Math.PI/6)*r,
-          y: oy + Math.sin((i/6)*Math.PI*2 - Math.PI/6)*r,
+          x: ox + Math.cos((i / 6) * Math.PI * 2 - Math.PI / 6) * r,
+          y: oy + Math.sin((i / 6) * Math.PI * 2 - Math.PI / 6) * r,
         }));
         hexGfx.strokePoints(pts, true);
       },
       onComplete: () => hexGfx.destroy(),
     });
 
-    for (let i = 0; i < 14; i++) {
-      const a = (i/14)*Math.PI*2, spd = Phaser.Math.Between(80, 240);
+    for (let i = 0; i < 10; i++) {
+      const a = (i / 10) * Math.PI * 2, spd = Phaser.Math.Between(60, 160);
       const p = scene.add.graphics().setDepth(28);
-      const sz = Phaser.Math.Between(3, 8);
+      const sz = Phaser.Math.Between(3, 6);
       p.fillStyle(0xff6600, 1); p.fillRect(-sz/2, -sz/2, sz, sz); p.setPosition(ox, oy);
-      scene.tweens.add({ targets: p, x: ox+Math.cos(a)*spd*0.6, y: oy+Math.sin(a)*spd*0.6,
-        alpha: 0, angle: Phaser.Math.Between(-180,180),
-        duration: Phaser.Math.Between(300,600), ease: 'Quad.easeOut',
-        onComplete: () => p.destroy() });
+      scene.tweens.add({
+        targets: p, x: ox + Math.cos(a) * spd * 0.6, y: oy + Math.sin(a) * spd * 0.6,
+        alpha: 0, angle: Phaser.Math.Between(-180, 180),
+        duration: Phaser.Math.Between(250, 450), ease: 'Quad.easeOut',
+        onComplete: () => p.destroy(),
+      });
     }
 
-    scene.cameras.main.shake(300, 0.014);
+    scene.cameras.main.shake(250, 0.010);
     try { scene.sound.play('quakeSFX', { volume: 0.7 }); } catch(_) {}
 
     const opponent = (scene._p1Paddle === this) ? scene._p2Paddle : scene._p1Paddle;
     if (opponent) {
       const dx = opponent.x - ox, dy = opponent.y - oy;
-      const dist = Math.sqrt(dx*dx + dy*dy) || 1;
-      const pushX = (dx/dist)*QUAKE_PUSH, pushY = (dy/dist)*QUAKE_PUSH;
-      const sX = opponent.image.x, sY = opponent.image.y;
-      const endX = Phaser.Math.Clamp(sX+pushX, opponent.minX, opponent.maxX);
-      const endY = Phaser.Math.Clamp(sY+pushY, opponent.minY, opponent.maxY);
-      scene.tweens.add({
-        targets: opponent.image,
-        x: [sX-6, sX+6, sX-4, sX+4, sX, endX],
-        y: [sY-4, sY+4, sY-2, sY+2, sY, endY],
-        duration: 280, ease: 'Linear',
-        onUpdate: () => opponent.image.body.reset(opponent.image.x, opponent.image.y),
-      });
-      opponent.image.setTint(0xff3300);
-      scene.time.delayedCall(400, () => opponent.image.clearTint());
+      const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+      if (dist <= QUAKE_RADIUS) {
+        const pushX = (dx / dist) * QUAKE_PUSH, pushY = (dy / dist) * QUAKE_PUSH;
+        const sX = opponent.image.x, sY = opponent.image.y;
+        const endX = Phaser.Math.Clamp(sX + pushX, opponent.minX, opponent.maxX);
+        const endY = Phaser.Math.Clamp(sY + pushY, opponent.minY, opponent.maxY);
+        scene.tweens.add({
+          targets: opponent.image,
+          x: [sX - 6, sX + 6, sX - 4, sX + 4, sX, endX],
+          y: [sY - 4, sY + 4, sY - 2, sY + 2, sY, endY],
+          duration: 250, ease: 'Linear',
+          onUpdate: () => opponent.image.body.reset(opponent.image.x, opponent.image.y),
+        });
+        opponent.image.setTint(0xff3300);
+        scene.time.delayedCall(350, () => opponent.image.clearTint());
+      }
     }
 
     this._showLabel('QUAKE!', 0xff6600, 900);
   }
 
-  // ── Cooldown bars ─────────────────────────────────────────
+  // ── Quake icon (shown above paddle when stored) ───────────
 
-  _buildCooldownBars(opts) {
-    const offset = opts.side === 'left' ? 20 : -20;
-    const barW = 4, barH = 60;
-
-    this._dashBg = this.scene.add.graphics().setDepth(11);
-    this._dashBg.fillStyle(0x000000, 0.5);
-    this._dashBg.fillRect(0, 0, barW, barH);
-
-    this._dashBar = this.scene.add.graphics().setDepth(12);
-
-    this._quakeBg = this.scene.add.graphics().setDepth(11);
-    this._quakeBg.fillStyle(0x000000, 0.5);
-    this._quakeBg.fillRect(0, 0, barW, barH);
-
-    this._quakeBar = this.scene.add.graphics().setDepth(12);
-
-    this._barOffset = offset;
-    this._barWidth  = barW;
-    this._barHeight = barH;
-  }
-
-  _updateCooldownBars() {
-    const x = this.image.x + this._barOffset;
-    const y = this.image.y - this._barHeight / 2;
-    const barW = this._barWidth, barH = this._barHeight;
-
-    const dashFill = 1 - Phaser.Math.Clamp(this._dashCooldown / DASH_COOLDOWN, 0, 1);
-    this._dashBg.setPosition(x - barW - 2, y);
-    this._dashBar.clear();
-    this._dashBar.fillStyle(0x00ffcc, 0.9);
-    this._dashBar.fillRect(x - barW - 2, y + barH * (1 - dashFill), barW, barH * dashFill);
-
-    const quakeFill = 1 - Phaser.Math.Clamp(this._quakeCooldown / QUAKE_COOLDOWN, 0, 1);
-    this._quakeBg.setPosition(x + 2, y);
-    this._quakeBar.clear();
-    this._quakeBar.fillStyle(0xff6600, 0.9);
-    this._quakeBar.fillRect(x + 2, y + barH * (1 - quakeFill), barW, barH * quakeFill);
-  }
-
-  // ── Stored power-up icon (shown above paddle) ─────────────
-
-  _buildStoredPowerUpDisplay(opts) {
-    this._storedBg   = this.scene.add.graphics().setDepth(13);
-    this._storedIcon = this.scene.add.text(0, 0, '', {
+  _buildQuakeIcon(opts) {
+    this._quakeIconBg  = this.scene.add.graphics().setDepth(13);
+    this._quakeIconTxt = this.scene.add.text(0, 0, '', {
       fontFamily: '"Courier New", Courier, monospace',
-      fontSize: '11px', color: '#ffffff',
+      fontSize: '11px', color: '#ff6600',
     }).setOrigin(0.5).setDepth(14);
   }
 
-  _updateStoredDisplay() {
-    const x  = this.image.x;
-    const y  = this.image.y - 55;
-    this._storedBg.clear();
-    if (this._storedPowerUp) {
-      const col = this._storedPowerUp === 'DASH' ? 0x00ffcc : 0xff6600;
-      this._storedBg.fillStyle(col, 0.25);
-      this._storedBg.fillRoundedRect(x - 22, y - 9, 44, 18, 4);
-      this._storedBg.lineStyle(1, col, 0.8);
-      this._storedBg.strokeRoundedRect(x - 22, y - 9, 44, 18, 4);
-      const hex = '#' + col.toString(16).padStart(6, '0');
-      this._storedIcon.setPosition(x, y).setText(this._storedPowerUp).setColor(hex);
+  _updateQuakeIcon() {
+    const x = this.image.x;
+    const y = this.image.y - 58;
+    this._quakeIconBg.clear();
+    if (this._storedQuake) {
+      this._quakeIconBg.fillStyle(0xff6600, 0.22);
+      this._quakeIconBg.fillRoundedRect(x - 24, y - 9, 48, 18, 3);
+      this._quakeIconBg.lineStyle(1, 0xff6600, 0.85);
+      this._quakeIconBg.strokeRoundedRect(x - 24, y - 9, 48, 18, 3);
+      this._quakeIconTxt.setPosition(x, y).setText('QUAKE').setVisible(true);
     } else {
-      this._storedIcon.setText('');
+      this._quakeIconTxt.setVisible(false);
     }
   }
 

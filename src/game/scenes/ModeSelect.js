@@ -9,17 +9,26 @@ export class ModeSelectScene extends Scene {
   }
 
   preload() {
-    // clickSFX should already be cached; load as fallback only
-    if (!this.cache.audio.exists('clickSFX')) {
-      this.load.setPath('assets');
+    this.load.setPath('assets');
+    if (!this.cache.audio.exists('clickSFX'))
       this.load.audio('clickSFX', 'Click_Button.wav');
-    }
+    if (!this.cache.audio.exists('titleOST'))
+      this.load.audio('titleOST', 'Title_Screen_OST.mp3');
   }
 
   create() {
     const { width: W, height: H } = this.scale;
-    // Title OST continues playing from MainMenu — no action needed.
-    // Visualizer keeps animating implicitly since music is still running.
+
+    // Ensure title music is playing (covers case where ModeSelect entered directly)
+    let titleMusic = this.sound.get('titleOST');
+    if (titleMusic) {
+      if (!titleMusic.isPlaying) titleMusic.play();
+    } else if (this.cache.audio.exists('titleOST')) {
+      try {
+        titleMusic = this.sound.add('titleOST', { loop: true, volume: 0.45 });
+        titleMusic.play();
+      } catch(_) {}
+    }
 
     this._buildBackground(W, H);
     this._buildHeader(W, H);
