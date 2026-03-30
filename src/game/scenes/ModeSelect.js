@@ -100,11 +100,11 @@ export class ModeSelectScene extends Scene {
   }
 
   _makeCard(x, y, mode) {
-    const CW    = 260, CH = 300;
+    const CW = 260, CH = 300;
     const color = mode.color;
-    const hex   = '#' + color.toString(16).padStart(6, '0');
-    const dim   = !mode.enabled;
-    const ctr   = this.add.container(x, y).setDepth(3).setAlpha(0);
+    const hex = '#' + color.toString(16).padStart(6, '0');
+    const dim = !mode.enabled;
+    const ctr = this.add.container(x, y).setDepth(3).setAlpha(0);
 
     const bg = this.add.graphics();
     const drawBg = (hover) => {
