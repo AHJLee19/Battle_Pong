@@ -4,9 +4,7 @@ This is a personal Phaser 3 project template that uses Vite for bundling. It sup
 
 **[This Template is also available as a TypeScript version.](https://github.com/phaserjs/template-vite-ts)**
 
-### Versions
-
-This template has been updated for:
+### Versions 
 
 - [Phaser 3.90.0](https://github.com/phaserjs/phaser)
 - [Vite 6.3.1](https://github.com/vitejs/vite)
