@@ -41,8 +41,6 @@ export class ModeSelectScene extends Scene {
     if (this._grid) this._grid.tilePositionY = time * 0.015;
   }
 
-  // ════════════════════════════════════════════════════════════
-
   _buildBackground(W, H) {
     this.add.rectangle(W / 2, H / 2, W, H, 0x050010);
 

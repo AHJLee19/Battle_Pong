@@ -4,8 +4,7 @@
 //  Muse Dash / osu! style visualizer
 //
 //  Audio analysis baked into visualizer_data.json:
-//    BPM          129.2
-//    Beat         464ms
+//    BPM          132
 //    First beat   580ms offset
 //    Bands        24 (log-spaced 50Hz–10kHz, all active)
 //    Frame rate   ~93ms per frame (sampled from STFT)
@@ -14,15 +13,15 @@
 // ─────────────────────────────────────────────────────────────
 import { Scene } from 'phaser';
 
-const BPM           = 132;
-const BEAT_MS       = 60000 / BPM;   // ~464ms
+const BPM = 132;
+const BEAT_MS = 60000 / BPM;   // ~464ms
 const FIRST_BEAT_MS = 580;
-const NUM_BARS      = 24;
-const BAR_GAP       = 6;             // px gap between bars
+const NUM_BARS = 24;
+const BAR_GAP = 6;             // px gap between bars
 
 // Retrowave palette
-const C_PINK   = 0xff2d78;
-const C_CYAN   = 0x00f5ff;
+const C_PINK = 0xff2d78;
+const C_CYAN = 0x00f5ff;
 const C_PURPLE = 0x9d00ff;
 const C_YELLOW = 0xffe600;
 
@@ -39,19 +38,19 @@ const BAR_COLS = [
 export class TitleScene extends Scene {
     constructor() {
         super('MainMenu');
-        this._beatCount    = 0;
-        this._vizFrame     = 0;
-        this._vizData      = null;
-        this._barHeights   = new Array(NUM_BARS).fill(0);
-        this._barTargets   = new Array(NUM_BARS).fill(0);
-        this._peakY        = new Array(NUM_BARS).fill(0);
-        this._frameTimer   = 0;
-        this._titleBounce  = 0;
+        this._beatCount = 0;
+        this._vizFrame = 0;
+        this._vizData = null;
+        this._barHeights = new Array(NUM_BARS).fill(0);
+        this._barTargets = new Array(NUM_BARS).fill(0);
+        this._peakY = new Array(NUM_BARS).fill(0);
+        this._frameTimer = 0;
+        this._titleBounce = 0;
         this._titleSquishX = 1;
         this._titleSquishY = 1;
     }
 
-    // ── preload ──────────────────────────────────────────────
+    // ── preload
     preload() {
         this.load.setPath('assets');
         // Only load audio if not already in the global sound manager
@@ -64,7 +63,7 @@ export class TitleScene extends Scene {
         this.load.json('vizData', 'visualizer_data.json');
     }
 
-    // ── create ──────────────────────────────────────────────
+    // ── create
     create() {
         const { width: W, height: H } = this.scale;
         this._W = W; this._H = H;
@@ -72,13 +71,13 @@ export class TitleScene extends Scene {
         this._vizData = this.cache.json.get('vizData');
 
         // Compute bar dimensions once — integer widths for pixel-perfect spacing
-        const totalW    = W * 0.94;
-        this._barW      = Math.floor((totalW - BAR_GAP * (NUM_BARS - 1)) / NUM_BARS);
+        const totalW = W * 0.94;
+        this._barW = Math.floor((totalW - BAR_GAP * (NUM_BARS - 1)) / NUM_BARS);
         this._barStartX = Math.floor((W - (this._barW * NUM_BARS + BAR_GAP * (NUM_BARS - 1))) / 2);
         this._bottomBarY = H - 1;
-        this._topBarY    = 1;
-        this._maxBarH    = H * 0.30;
-        this._maxTopH    = H * 0.095;
+        this._topBarY = 1;
+        this._maxBarH = H * 0.30;
+        this._maxTopH = H * 0.095;
 
         this._buildBackground(W, H);
         this._buildScanlines(W, H);
@@ -101,7 +100,7 @@ export class TitleScene extends Scene {
         this.input.keyboard.on('keydown-ENTER', () => this._onPlay());
     }
 
-    // ── update ──────────────────────────────────────────────
+    // ── update
     update(time, delta) {
         this._updateVisualizerFrame(delta);
         this._updateBars(delta);
@@ -114,10 +113,7 @@ export class TitleScene extends Scene {
         }
     }
 
-    // ════════════════════════════════════════════════════════
     //  BACKGROUND
-    // ════════════════════════════════════════════════════════
-
     _buildBackground(W, H) {
         const gfx = this.add.graphics().setDepth(0);
         gfx.fillGradientStyle(0x0a0020, 0x0a0020, 0x120030, 0x120030, 1);
@@ -134,10 +130,7 @@ export class TitleScene extends Scene {
             .setAlpha(0.5).setDepth(1);
     }
 
-    // ════════════════════════════════════════════════════════
     //  SCANLINES  (single definition — drawn on top of everything)
-    // ════════════════════════════════════════════════════════
-
     _buildScanlines(W, H) {
         if (!this.textures.exists('scanlines')) {
             const sl = this.make.graphics({ add: false });
@@ -151,10 +144,7 @@ export class TitleScene extends Scene {
         this.add.image(W / 2, H / 2, 'scanlines').setDepth(200);
     }
 
-    // ════════════════════════════════════════════════════════
     //  VISUALIZER BARS
-    // ════════════════════════════════════════════════════════
-
     _buildVisualizer(W, H) {
         this._vizGfx = this.add.graphics().setDepth(20);
         // _barW / _barStartX / _bottomBarY etc. already set in create()
@@ -174,9 +164,9 @@ export class TitleScene extends Scene {
     }
 
     _updateBars(delta) {
-        const dt       = delta / 1000;
-        const riseSpd  = 9.0;
-        const fallSpd  = 3.0;
+        const dt = delta / 1000;
+        const riseSpd = 9.0;
+        const fallSpd = 3.0;
         const peakFall = 0.9;
 
         for (let i = 0; i < NUM_BARS; i++) {
@@ -248,10 +238,8 @@ export class TitleScene extends Scene {
         gfx.strokeLineShape(new Phaser.Geom.Line(this._barStartX, this._topBarY, endX, this._topBarY));
     }
 
-    // ════════════════════════════════════════════════════════
-    //  TITLE CARD  (osu!-style, bounces on beat)
-    // ════════════════════════════════════════════════════════
 
+    //  TITLE CARD  (osu!-style, bounces on beat)
     _buildTitle(W, H) {
         const titleY     = H * 0.32;
         this._titleBaseY = titleY;
@@ -290,11 +278,11 @@ export class TitleScene extends Scene {
     }
 
     _drawTitleCard(W, cy, bounceOff, alpha) {
-        const gfx   = this._titleCard;
+        const gfx = this._titleCard;
         const cardW = W * 0.88;
         const cardH = 110;
-        const x     = (W - cardW) / 2;
-        const y     = cy - cardH / 2 + bounceOff;
+        const x = (W - cardW) / 2;
+        const y = cy - cardH / 2 + bounceOff;
 
         gfx.clear();
         gfx.fillStyle(0x0a0020, alpha * 0.85);
@@ -325,11 +313,7 @@ export class TitleScene extends Scene {
         this._subTitle?.setY(newY + 58);
         this._titleGlows.forEach(g => g.setY(newY));
     }
-
-    // ════════════════════════════════════════════════════════
     //  BUTTONS
-    // ════════════════════════════════════════════════════════
-
     _buildButtons(W, H) {
         this._btnGfxList = [];
         const btnY = H * 0.51;
@@ -390,13 +374,10 @@ export class TitleScene extends Scene {
         return [bg, txt];
     }
 
-    // ════════════════════════════════════════════════════════
     //  BEAT ENGINE
-    // ════════════════════════════════════════════════════════
-
     _onBeat() {
         this._beatCount++;
-        const b      = this._beatCount;
+        const b = this._beatCount;
         const isBar  = b % 4 === 0;
         const isHalf = b % 2 === 0;
 
@@ -455,10 +436,7 @@ export class TitleScene extends Scene {
         }
     }
 
-    // ════════════════════════════════════════════════════════
     //  AUDIO  (global sound manager — music persists across scenes)
-    // ════════════════════════════════════════════════════════
-
     _startMusic() {
         // Re-use existing instance if already playing (e.g. returning from ModeSelect)
         let music = this.sound.get('titleOST');
@@ -477,10 +455,7 @@ export class TitleScene extends Scene {
         try { this.sound.play('clickSFX', { volume: 0.6 }); } catch (_) {}
     }
 
-    // ════════════════════════════════════════════════════════
     //  ENTRANCE ANIMATION
-    // ════════════════════════════════════════════════════════
-
     _animateIn(W, H) {
         this._titleText.setAlpha(0).setY(this._titleBaseY - 50);
         this._titleCard.setAlpha(0);
@@ -495,10 +470,7 @@ export class TitleScene extends Scene {
         });
     }
 
-    // ════════════════════════════════════════════════════════
     //  TRANSITIONS
-    // ════════════════════════════════════════════════════════
-
     _onPlay() {
         if (this._beatLoop) this._beatLoop.remove();
         // Do NOT stop music — it persists into ModeSelect

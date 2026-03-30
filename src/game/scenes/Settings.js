@@ -5,7 +5,7 @@ export class SettingsScene extends Scene {
     constructor() {
         super('Settings');
         this._musicOn = true;
-        this._sfxOn   = true;
+        this._sfxOn = true;
     }
 
     create() {
@@ -48,16 +48,14 @@ export class SettingsScene extends Scene {
         this._buildCloseButton(W, py + PH - 30);
     }
 
-    // ─────────────────────────────────────────────────────────
     //  KEY TABLE
-    // ─────────────────────────────────────────────────────────
     _buildKeyTable(W, H, px, py, PW, PH) {
-        const startY   = py + 90;
-        const rowH     = 32;
+        const startY = py + 90;
+        const rowH = 32;
         // Three columns: action | P1 key | P2 key
         const colAction = px + 60;
-        const colP1     = px + PW * 0.46;
-        const colP2     = px + PW * 0.73;
+        const colP1 = px + PW * 0.46;
+        const colP2 = px + PW * 0.73;
 
         // Column headers
         const headerStyle = {
@@ -137,10 +135,10 @@ export class SettingsScene extends Scene {
     }
 
     _makeKeyBadge(x, y, label, color = 0x00f5ff) {
-        const hex  = '#' + color.toString(16).padStart(6, '0');
-        const bw   = Math.max(44, label.length * 10 + 20);
-        const bh   = 24;
-        const gfx  = this.add.graphics().setDepth(3);
+        const hex = '#' + color.toString(16).padStart(6, '0');
+        const bw = Math.max(44, label.length * 10 + 20);
+        const bh = 24;
+        const gfx = this.add.graphics().setDepth(3);
         gfx.lineStyle(1, color, 0.85);
         gfx.strokeRoundedRect(x - bw / 2, y - bh / 2, bw, bh, 4);
         gfx.fillStyle(color, 0.1);
@@ -155,9 +153,7 @@ export class SettingsScene extends Scene {
         }).setOrigin(0.5).setDepth(4);
     }
 
-    // ─────────────────────────────────────────────────────────
     //  TOGGLES
-    // ─────────────────────────────────────────────────────────
     _buildToggle(W, y, label, initial, onChange) {
         const lx = W / 2 - 160;
         this.add.text(lx, y, label, {
@@ -167,7 +163,7 @@ export class SettingsScene extends Scene {
 
         let state = initial;
         const tw = 52, th = 24, tx = W / 2 + 60;
-        const gfx  = this.add.graphics().setDepth(3);
+        const gfx = this.add.graphics().setDepth(3);
         const knob = this.add.graphics().setDepth(4);
         const stTxt = this.add.text(tx + tw + 16, y, '', {
             fontFamily: '"Courier New", Courier, monospace',
@@ -193,9 +189,7 @@ export class SettingsScene extends Scene {
             .on('pointerdown', () => { state = !state; onChange(state); draw(); });
     }
 
-    // ─────────────────────────────────────────────────────────
     //  CLOSE BUTTON
-    // ─────────────────────────────────────────────────────────
     _buildCloseButton(W, by) {
         const bx  = W / 2;
         const gfx = this.add.graphics().setDepth(3);

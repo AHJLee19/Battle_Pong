@@ -4,12 +4,12 @@
 
 export class Goalie {
   constructor(scene, opts) {
-    this.scene    = scene;
-    this.railX    = opts.x;
+    this.scene = scene;
+    this.railX = opts.x;
     this.railMinY = opts.railMinY ?? 80;
     this.railMaxY = opts.railMaxY ?? (scene.scale.height - 80);
-    this.speed    = opts.speed ?? 220;
-    this.tint     = opts.tint ?? 0xffcc00;
+    this.speed = opts.speed ?? 220;
+    this.tint = opts.tint ?? 0xffcc00;
 
     this._buildSprite(opts.x, opts.startY);
     this._setupKeys(opts);
@@ -33,8 +33,8 @@ export class Goalie {
   }
 
   get body() { return this.image.body; }
-  get x()    { return this.image.x; }
-  get y()    { return this.image.y; }
+  get x() { return this.image.x; }
+  get y() { return this.image.y; }
   destroy()  { this.image.destroy(); }
 
   _buildSprite(x, y) {

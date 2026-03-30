@@ -1,34 +1,34 @@
 // src/game/scenes/Game.js
-import Phaser, { Scene }          from 'phaser';
-import { Paddle }         from '../objects/Paddle.js';
-import { Ball }           from '../objects/Ball.js';
-import { Goalie }         from '../objects/Goalie.js';
+import Phaser, { Scene } from 'phaser';
+import { Paddle } from '../objects/Paddle.js';
+import { Ball } from '../objects/Ball.js';
+import { Goalie } from '../objects/Goalie.js';
 import { PowerUpManager } from '../objects/PowerUpManager.js';
 
 const WINNING_SCORE = 3;
 
-const BATTLE_BPM        = 152;
-const BATTLE_BEAT_MS    = 60000 / BATTLE_BPM;
+const BATTLE_BPM = 152;
+const BATTLE_BEAT_MS = 60000 / BATTLE_BPM;
 const BATTLE_FIRST_BEAT = 116;
 
-const GOAL_W   = 24;
-const GOAL_H   = 240;
-const BALL_R   = 10;   // must match Ball.js circle radius
+const GOAL_W = 24;
+const GOAL_H = 240;
+const BALL_R = 10;   // must match Ball.js circle radius
 
 export class GameScene extends Scene {
     constructor() {
         super('Game');
-        this._scores    = [0, 0];
-        this._paused    = false;
-        this._gameOver  = false;
+        this._scores = [0, 0];
+        this._paused = false;
+        this._gameOver = false;
         this._beatCount = 0;
     }
 
     init(data) {
-        this._mode      = data?.mode ?? '2P';
-        this._scores    = [0, 0];
-        this._gameOver  = false;
-        this._paused    = false;
+        this._mode = data?.mode ?? '2P';
+        this._scores = [0, 0];
+        this._gameOver = false;
+        this._paused = false;
         this._beatCount = 0;
     }
 
@@ -99,14 +99,11 @@ export class GameScene extends Scene {
         this._updateDashBars();
     }
 
-    // ════════════════════════════════════════════════════════
     //  BEAT ENGINE
-    // ════════════════════════════════════════════════════════
-
     _onBeat() {
         if (this._paused || this._gameOver) return;
         this._beatCount++;
-        const b     = this._beatCount;
+        const b = this._beatCount;
         const isBar  = b % 4 === 0;
         const isHalf = b % 2 === 0;
 
@@ -138,10 +135,7 @@ export class GameScene extends Scene {
         }
     }
 
-    // ════════════════════════════════════════════════════════
     //  ARENA — solid bg, no stars/grid, neon border only
-    // ════════════════════════════════════════════════════════
-
     _buildArena(W, H) {
         // Solid dark background only — no scrolling grid/stars
         this.add.rectangle(W / 2, H / 2, W, H, 0x08001a);
@@ -186,10 +180,7 @@ export class GameScene extends Scene {
         this.physics.world.setBounds(0, 40, W, H - 80);
     }
 
-    // ════════════════════════════════════════════════════════
     //  GOAL ZONES
-    // ════════════════════════════════════════════════════════
-
     _buildGoalZones(W, H) {
         const cy = H / 2;
         this._goalZoneGlows = [];
@@ -231,10 +222,7 @@ export class GameScene extends Scene {
         drawGoal(W - GOAL_W, 0xff2d78);
     }
 
-    // ════════════════════════════════════════════════════════
     //  BARRIERS — static, no flashing
-    // ════════════════════════════════════════════════════════
-
     _buildBarriers(W, H) {
         this._barriers = this.physics.add.staticGroup();
         const BW = 16, BH = 56;
@@ -251,10 +239,7 @@ export class GameScene extends Scene {
         });
     }
 
-    // ════════════════════════════════════════════════════════
     //  PLAYERS
-    // ════════════════════════════════════════════════════════
-
     _buildPlayers(W, H) {
         const margin = 50;
         this._p1Paddle = new Paddle(this, {
@@ -312,10 +297,7 @@ export class GameScene extends Scene {
         });
     }
 
-    // ════════════════════════════════════════════════════════
     //  PHYSICS — manual paddle collision (proper rotated hitbox)
-    // ════════════════════════════════════════════════════════
-
     _setupPhysics() {
         // Goalie and barrier collisions still use Arcade Physics (axis-aligned, fine)
         this.physics.add.collider(this._ball.image, this._p1Goalie.image, () => {
@@ -443,10 +425,7 @@ export class GameScene extends Scene {
         try { this.sound.play('pingSFX', { volume: isDash ? 0.6 : 0.4, detune: isDash ? 400 : 0 }); } catch(_) {}
     }
 
-    // ════════════════════════════════════════════════════════
     //  GOAL DETECTION — uses ball edge, not center
-    // ════════════════════════════════════════════════════════
-
     _checkGoal() {
         if (this._goalCooldown > 0) return;
 
@@ -480,10 +459,7 @@ export class GameScene extends Scene {
         }
     }
 
-    // ════════════════════════════════════════════════════════
     //  HUD
-    // ════════════════════════════════════════════════════════
-
     _buildHUD(W, H) {
         this._p1ScoreTxt = this.add.text(W / 2 - 80, 10, '0', {
             fontFamily: '"Courier New", Courier, monospace',
@@ -507,7 +483,7 @@ export class GameScene extends Scene {
             { fontFamily: '"Courier New", Courier, monospace', fontSize: '9px', color: '#442233' }
         ).setOrigin(0.5, 1).setDepth(20);
 
-        // ── Top-screen dash cooldown bars ─────────────────────────
+        // ── Top-screen dash cooldown bars
         // P1 bar: left of centre, P2 bar: right of centre
         const barW = 120, barH = 4, barY = 6;
         const p1BarX = W / 2 - 160;
@@ -552,10 +528,7 @@ export class GameScene extends Scene {
         );
     }
 
-    // ════════════════════════════════════════════════════════
     //  WIN SCREEN
-    // ════════════════════════════════════════════════════════
-
     _triggerWin(winner) {
         this._gameOver = true;
         if (this._beatLoop) this._beatLoop.remove();
@@ -569,11 +542,11 @@ export class GameScene extends Scene {
         const g = (hexCol >> 8)  & 0xff;
         const b =  hexCol        & 0xff;
 
-        // ── 1. Dim overlay fades in ───────────────────────────────
+        // ── 1. Dim overlay fades in
         const overlay = this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0).setDepth(50);
         this.tweens.add({ targets: overlay, alpha: 0.80, duration: 500, ease: 'Quad.easeIn' });
 
-        // ── 2. Victory music starts immediately ───────────────────
+        // ── 2. Victory music starts immediately
         try {
             if (this.cache.audio.exists('clearSFX')) {
                 this._clearMusic = this.sound.add('clearSFX', { loop: false, volume: 0.75 });
@@ -581,19 +554,19 @@ export class GameScene extends Scene {
             }
         } catch(_) {}
 
-        // ── 3. Camera flash after short delay ─────────────────────
+        // ── 3. Camera flash after short delay
         this.time.delayedCall(250, () => {
             this.cameras.main.flash(500, r, g, b);
         });
 
-        // ── 4. Particle burst from centre ─────────────────────────
+        // ── 4. Particle burst from centre
         this.time.delayedCall(300, () => {
             for (let i = 0; i < 28; i++) {
                 const angle = (i / 28) * Math.PI * 2;
-                const dist  = Phaser.Math.Between(80, 340);
-                const col   = i % 3 === 0 ? 0xffffff : hexCol;
-                const p     = this.add.graphics().setDepth(55);
-                const sz    = Phaser.Math.Between(3, 9);
+                const dist = Phaser.Math.Between(80, 340);
+                const col = i % 3 === 0 ? 0xffffff : hexCol;
+                const p = this.add.graphics().setDepth(55);
+                const sz = Phaser.Math.Between(3, 9);
                 p.fillStyle(col, 1);
                 p.fillRect(-sz / 2, -sz / 2, sz, sz);
                 p.setPosition(W / 2, H / 2);
@@ -610,7 +583,7 @@ export class GameScene extends Scene {
             }
         });
 
-        // ── 5. Winner text drops in from above ────────────────────
+        // ── 5. Winner text drops in from above
         const winTxt = this.add.text(W / 2, -100, label, {
             fontFamily: '"Courier New", Courier, monospace',
             fontSize: '88px', fontStyle: 'bold', color,
@@ -626,7 +599,7 @@ export class GameScene extends Scene {
             });
         });
 
-        // ── 6. Score slides up from below ─────────────────────────
+        // ── 6. Score slides up from below
         const scoreTxt = this.add.text(W / 2, H + 50, `${this._scores[0]}  :  ${this._scores[1]}`, {
             fontFamily: '"Courier New", Courier, monospace',
             fontSize: '44px', color: '#ffffff',
@@ -641,7 +614,7 @@ export class GameScene extends Scene {
             });
         });
 
-        // ── 7. Neon divider sweeps across ─────────────────────────
+        // ── 7. Neon divider sweeps across
         const divLine = this.add.graphics().setDepth(56).setAlpha(0);
         this.time.delayedCall(1000, () => {
             divLine.lineStyle(2, hexCol, 0.6);
@@ -649,7 +622,7 @@ export class GameScene extends Scene {
             this.tweens.add({ targets: divLine, alpha: 1, duration: 280 });
         });
 
-        // ── 8. Buttons fade up ────────────────────────────────────
+        // ── 8. Buttons fade up
         this.time.delayedCall(1200, () => {
             this._makeWinBtn(W / 2 - 150, H / 2 + 118, 'REMATCH', 0x00f5ff, () => {
                 if (this._clearMusic) this._clearMusic.stop();
@@ -661,7 +634,7 @@ export class GameScene extends Scene {
             });
         });
 
-        // ── 9. Subtle pulsing glow behind title ───────────────────
+        // ── 9. Subtle pulsing glow behind title
         const glow = this.add.rectangle(W / 2, H / 2 - 90, W * 0.85, 120, hexCol, 0).setDepth(51);
         this.time.delayedCall(700, () => {
             this.tweens.add({
@@ -687,10 +660,7 @@ export class GameScene extends Scene {
         zone.on('pointerdown', cb);
     }
 
-    // ════════════════════════════════════════════════════════
-    //  PAUSE MENU
-    // ════════════════════════════════════════════════════════
-
+    //  PAUSE MENU (Needs to be slightly fixed when pause on ball spawn)
     _buildPauseMenu(W, H) {
         this._pauseGroup = this.add.container(W / 2, H / 2).setDepth(80).setVisible(false);
         const overlay   = this.add.rectangle(0, 0, W, H, 0x000000, 0.82);
@@ -726,10 +696,7 @@ export class GameScene extends Scene {
         }
     }
 
-    // ════════════════════════════════════════════════════════
     //  DASH COOLDOWN BARS (top of screen)
-    // ════════════════════════════════════════════════════════
-
     _updateDashBars() {
         if (!this._dashBarMeta) return;
         const { barW, barH, barY, p1BarX, p2BarX } = this._dashBarMeta;
@@ -746,10 +713,7 @@ export class GameScene extends Scene {
         this._p2DashBarGfx.fillRect(p2BarX, barY, barW * p2Fill, barH);
     }
 
-    // ════════════════════════════════════════════════════════
     //  HELPERS
-    // ════════════════════════════════════════════════════════
-
     _flash(color, duration = 80) {
         const f = this.add.rectangle(this._W / 2, this._H / 2, this._W, this._H, color, 0.15).setDepth(60);
         this.tweens.add({ targets: f, alpha: 0, duration, onComplete: () => f.destroy() });

@@ -1,15 +1,15 @@
 // src/game/objects/Ball.js
-const BASE_SPEED  = 380;
-const MAX_SPEED   = 720;
+const BASE_SPEED = 380;
+const MAX_SPEED = 720;
 const SPEED_DELTA = 18;
-const DASH_BOOST  = 160;   // extra speed added on dash hit
-const DECAY_RATE  = 60;    // px/s² decay back toward normal speed
+const DASH_BOOST = 160;   // extra speed added on dash hit
+const DECAY_RATE = 60;    // px/s² decay back toward normal speed
 
 export class Ball {
   constructor(scene, x, y) {
-    this.scene       = scene;
-    this._speed      = BASE_SPEED;
-    this._trail      = [];
+    this.scene = scene;
+    this._speed = BASE_SPEED;
+    this._trail = [];
     this._trailTimer = 0;
     this._buildSprite(x, y);
     this._buildGlow();
@@ -68,9 +68,9 @@ export class Ball {
     }
   }
 
-  get body()  { return this.image.body; }
-  get x()     { return this.image.x; }
-  get y()     { return this.image.y; }
+  get body() { return this.image.body; }
+  get x() { return this.image.x; }
+  get y() { return this.image.y; }
   get speed() { return this._speed; }
   set speed(v){ this._speed = isFinite(v) ? v : BASE_SPEED; }
 

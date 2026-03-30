@@ -3,35 +3,35 @@
 // Only QUAKE powerup can be stored (max 1).
 // Cooldown bars live in the HUD (Game.js), not on the paddle.
 
-const ROTATE_SPEED   = 120;   // deg/s
-const DASH_SPEED     = 900;   // px/s
-const DASH_DURATION  = 180;   // ms
-const DASH_COOLDOWN  = 1200;  // ms
+const ROTATE_SPEED = 120;   // deg/s
+const DASH_SPEED = 900;   // px/s
+const DASH_DURATION = 180;   // ms
+const DASH_COOLDOWN = 1200;  // ms
 const QUAKE_COOLDOWN = 5000;  // ms
-const QUAKE_RADIUS   = 180;
-const QUAKE_PUSH     = 140;
+const QUAKE_RADIUS = 180;
+const QUAKE_PUSH = 140;
 
 export class Paddle {
   constructor(scene, opts) {
-    this.scene  = scene;
-    this.opts   = opts;
-    this.tint   = opts.tint  ?? 0x00ffcc;
-    this.speed  = opts.speed ?? 300;
-    this.side   = opts.side  ?? 'left';
+    this.scene = scene;
+    this.opts = opts;
+    this.tint = opts.tint ?? 0x00ffcc;
+    this.speed = opts.speed ?? 300;
+    this.side = opts.side  ?? 'left';
 
     this.minX = opts.minX ?? 40;
     this.maxX = opts.maxX ?? scene.scale.width  - 40;
     this.minY = opts.minY ?? 40;
     this.maxY = opts.maxY ?? scene.scale.height - 40;
 
-    this._dashing       = false;
+    this._dashing = false;
     this._dashCooldown  = 0;
-    this._dashVelX      = 0;
-    this._dashVelY      = 0;
-    this._dashTimer     = 0;
+    this._dashVelX = 0;
+    this._dashVelY = 0;
+    this._dashTimer = 0;
     this._quakeCooldown = 0;
-    this._trail         = [];
-    this._trailTimer    = 0;
+    this._trail = [];
+    this._trailTimer = 0;
 
     // Only QUAKE can be stored
     this._storedQuake = false;
@@ -71,16 +71,16 @@ export class Paddle {
   }
 
   /** Expose cooldowns so Game.js HUD bars can read them */
-  get dashCooldown()  { return this._dashCooldown; }
+  get dashCooldown() { return this._dashCooldown; }
   get quakeCooldown() { return this._quakeCooldown; }
-  get hasQuake()      { return this._storedQuake; }
-  get isDashing()     { return this._dashing; }
-  get body()          { return this.image.body; }
-  get x()             { return this.image.x; }
-  get y()             { return this.image.y; }
-  get angle()         { return this.image.angle; }
+  get hasQuake() { return this._storedQuake; }
+  get isDashing() { return this._dashing; }
+  get body() { return this.image.body; }
+  get x() { return this.image.x; }
+  get y() { return this.image.y; }
+  get angle() { return this.image.angle; }
 
-  get railX()    { return this.image.x; }
+  get railX() { return this.image.x; }
   get railMinY() { return this.minY; }
   get railMaxY() { return this.maxY; }
 
@@ -101,9 +101,9 @@ export class Paddle {
     const dt = delta / 1000;
     let vx = 0, vy = 0;
 
-    if (this._keys.up?.isDown)    vy = -this.speed;
-    if (this._keys.down?.isDown)  vy =  this.speed;
-    if (this._keys.left?.isDown)  vx = -this.speed;
+    if (this._keys.up?.isDown) vy = -this.speed;
+    if (this._keys.down?.isDown) vy =  this.speed;
+    if (this._keys.left?.isDown) vx = -this.speed;
     if (this._keys.right?.isDown) vx =  this.speed;
 
     if (vx !== 0 && vy !== 0) { vx *= 0.707; vy *= 0.707; }
@@ -142,9 +142,9 @@ export class Paddle {
 
   _computeDashDirection() {
     let vx = 0, vy = 0;
-    if (this._keys.up?.isDown)    vy = -1;
-    if (this._keys.down?.isDown)  vy =  1;
-    if (this._keys.left?.isDown)  vx = -1;
+    if (this._keys.up?.isDown) vy = -1;
+    if (this._keys.down?.isDown) vy =  1;
+    if (this._keys.left?.isDown) vx = -1;
     if (this._keys.right?.isDown) vx =  1;
 
     if (vx === 0 && vy === 0) {
@@ -158,8 +158,8 @@ export class Paddle {
   }
 
   _startDash() {
-    this._dashing      = true;
-    this._dashTimer    = DASH_DURATION;
+    this._dashing = true;
+    this._dashTimer = DASH_DURATION;
     this._dashCooldown = DASH_COOLDOWN;
     this._computeDashDirection();
 

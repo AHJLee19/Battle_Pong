@@ -5,16 +5,16 @@ const TYPES = {
   QUAKE: { color: 0xff6600, label: 'QUAKE', key: 'quake' },
 };
 const POWERUP_RADIUS = 20;
-const PICKUP_DIST    = 48;
-const LIFETIME_MS    = 9000;
+const PICKUP_DIST = 48;
+const LIFETIME_MS = 9000;
 
 export class PowerUp {
   constructor(scene, x, y, type = 'QUAKE') {
-    this.scene     = scene;
-    this.type      = type;
-    this.def       = TYPES[type] ?? TYPES.QUAKE;
+    this.scene = scene;
+    this.type = type;
+    this.def = TYPES[type] ?? TYPES.QUAKE;
     this.collected = false;
-    this._age      = 0;
+    this._age = 0;
     this._buildSprite(x, y);
   }
 
